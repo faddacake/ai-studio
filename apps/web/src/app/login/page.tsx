@@ -1,11 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/auth/check")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.setupRequired) {
+          window.location.href = "/setup";
+        } else if (data.authenticated) {
+          window.location.href = "/workflows";
+        } else {
+          setChecking(false);
+        }
+      })
+      .catch(() => setChecking(false));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +47,8 @@ export default function LoginPage() {
       setLoading(false);
     }
   }
+
+  if (checking) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--color-bg-primary)" }}>

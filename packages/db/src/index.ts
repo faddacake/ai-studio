@@ -42,9 +42,11 @@ export function getDb() {
 
   // Run migrations — fail-and-exit on error
   const migrationsCandidates = [
-  path.join(__dirname, "migrations"),           // /app/packages/db/dist/migrations
-  path.join(__dirname, "..", "src", "migrations") // /app/packages/db/src/migrations
-];
+    path.join(__dirname, "migrations"),                        // dist/migrations (production)
+    path.join(__dirname, "..", "src", "migrations"),            // ../src/migrations (from dist)
+    path.resolve("packages/db/src/migrations"),                // from monorepo root (dev/webpack)
+    path.resolve("packages/db/dist/migrations"),               // from monorepo root (production)
+  ];
 
 
 const migrationsDir = migrationsCandidates.find((p) => fs.existsSync(p));

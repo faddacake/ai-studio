@@ -1,30 +1,24 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { getDb } from "@aistudio/db";
 
 export async function GET() {
-  try {
-    getDb();
-    return NextResponse.json({
-      status: "ok",
-      db: "connected",
-      timestamp: new Date().toISOString(),
-    });
-  } catch (err: any) {
-    // IMPORTANT: print full error + stack to docker logs
-    console.error("[health] DB health check failed:", err);
-    console.error("[health] stack:", err?.stack);
+  const health: Record<string, unknown> = {
+    status: "ok",
+    timestamp: new Date().toISOString(),
+  };
 
-    return NextResponse.json(
-      {
-        status: "error",
-        message: err?.message ?? String(err),
-        name: err?.name,
-        stack: err?.stack,
-      },
-      { status: 500 },
-    );
+  // DB check — optional, don't fail liveness if DB is unavailable
+  try {
+    const { getDb } = await import("@aistudio/db");
+    getDb();
+    health.db = "connected";
+  } catch (err: any) {
+    console.error("[health] DB health check failed:", err?.message);
+    health.db = "error";
+    health.dbError = err?.message ?? String(err);
   }
+
+  return NextResponse.json(health);
 }
 

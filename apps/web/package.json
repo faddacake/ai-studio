@@ -16,6 +16,7 @@
     "@aistudio/shared": "workspace:*",
     "@ioredis/commands": "^1.5.0",
     "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.6.0",
     "bindings": "^1.5.0",
     "bullmq": "^5.31.0",
     "cluster-key-slot": "^1.1.2",

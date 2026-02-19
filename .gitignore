@@ -1,0 +1,23 @@
+node_modules/
+dist/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Data directory (runtime)
+/data/
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log

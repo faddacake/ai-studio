@@ -1,0 +1,20 @@
+{
+  "name": "@aistudio/adapters",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'no lint configured yet'"
+  },
+  "dependencies": {
+    "@aistudio/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

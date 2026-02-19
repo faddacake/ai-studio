@@ -1,0 +1,44 @@
+services:
+  app:
+    command: pnpm dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${APP_PORT:-3001}:3000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATA_DIR=/data
+      - TURBO_CACHE_DIR=/tmp/.turbo
+      - NODE_ENV=development
+      - HOME=/tmp
+      - COREPACK_HOME=/tmp/corepack
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - app_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  app_data:
+  redis_data:

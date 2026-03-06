@@ -1,0 +1,371 @@
+# SESSION CONTEXT — AI Studio
+
+Date: 2026-02-20
+Session ID: 192347
+
+---
+
+## 1. Current Focus
+
+Primary Task:
+Implement CLIP scoring pipeline
+
+Active Files:
+services/scoring.ts
+api/process.ts
+
+Last State:
+Claude was implementing batch scoring
+
+Next Step:
+Finish scoring + wire to UI
+
+Subtasks:
+- [ ] 
+- [ ] 
+- [ ] 
+
+---
+
+## 2. Current Branch / Environment
+
+Git Branch:
+<main / dev / feature-x>
+
+Environment:
+- Local / Docker / Cloud
+
+---
+
+## 3. Active Files
+
+Files Being Modified:
+- <path/file1.ts>
+- <path/file2.tsx>
+- <path/file3.ts>
+
+---
+
+## 4. Decisions Made This Session
+
+- 
+- 
+- 
+
+---
+
+## 5. Open Questions / Blockers
+
+- 
+- 
+- 
+
+---
+
+## 6. Next Actions (When I Return)
+
+1. 
+2. 
+3. 
+
+---
+
+## 7. Claude / LLM Instructions (Session)
+
+Mode:
+- Minimal tokens
+- Diff only
+- No explanations
+- Silent execution
+
+Header:
+
+"You are a senior engineer.
+
+Rules:
+- Minimal tokens
+- Diffs only
+- No explanations
+- No restating
+- Silent execution
+- Assume prior context
+
+Output only required changes."
+
+---
+
+## 8. Notes / Scratchpad
+
+<Temporary ideas, links, reminders>
+# SESSION CONTEXT — AI Studio
+
+Date: 2026-02-20
+Session ID: 192347
+
+---
+
+## 1. Current Focus
+
+Primary Task:
+<What I am actively building right now>
+
+Subtasks:
+- [ ] 
+- [ ] 
+- [ ] 
+
+---
+
+## 2. Current Branch / Environment
+
+Git Branch:
+<main / dev / feature-x>
+
+Environment:
+- Local / Docker / Cloud
+
+---
+
+## 3. Active Files
+
+Files Being Modified:
+- <path/file1.ts>
+- <path/file2.tsx>
+- <path/file3.ts>
+
+---
+
+## 4. Decisions Made This Session
+
+- 
+- 
+- 
+
+---
+
+## 5. Open Questions / Blockers
+
+- 
+- 
+- 
+
+---
+
+## 6. Next Actions (When I Return)
+
+1. 
+2. 
+3. 
+
+---
+
+## 7. Claude / LLM Instructions (Session)
+
+Mode:
+- Minimal tokens
+- Diff only
+- No explanations
+- Silent execution
+
+Header:
+
+"You are a senior engineer.
+
+Rules:
+- Minimal tokens
+- Diffs only
+- No explanations
+- No restating
+- Silent execution
+- Assume prior context
+
+Output only required changes."
+
+---
+
+## 8. Notes / Scratchpad
+
+<Temporary ideas, links, reminders>
+# SESSION CONTEXT — AI Studio
+
+Date: 2026-02-20
+Session ID: 192347
+
+---
+
+## 1. Current Focus
+
+Primary Task:
+<What I am actively building right now>
+
+Subtasks:
+- [ ] 
+- [ ] 
+- [ ] 
+
+---
+
+## 2. Current Branch / Environment
+
+Git Branch:
+<main / dev / feature-x>
+
+Environment:
+- Local / Docker / Cloud
+
+---
+
+## 3. Active Files
+
+Files Being Modified:
+- <path/file1.ts>
+- <path/file2.tsx>
+- <path/file3.ts>
+
+---
+
+## 4. Decisions Made This Session
+
+- 
+- 
+- 
+
+---
+
+## 5. Open Questions / Blockers
+
+- 
+- 
+- 
+
+---
+
+## 6. Next Actions (When I Return)
+
+1. 
+2. 
+3. 
+
+---
+
+## 7. Claude / LLM Instructions (Session)
+
+Mode:
+- Minimal tokens
+- Diff only
+- No explanations
+- Silent execution
+
+Header:
+
+"You are a senior engineer.
+
+Rules:
+- Minimal tokens
+- Diffs only
+- No explanations
+- No restating
+- Silent execution
+- Assume prior context
+
+Output only required changes."
+
+---
+
+## 8. Notes / Scratchpad
+
+<Temporary ideas, links, reminders>
+# SESSION CONTEXT — AI Studio
+
+Date: 2026-02-20
+Session ID: 192347
+
+---
+
+## 1. Current Focus
+
+Primary Task:
+Finish Phase 2 - CLIP scoring implementation
+
+Subtasks:
+- Wire scoring servicePrimary Task:
+Finish Phase 2 – CLIP scoring implementation
+
+Subtasks:
+- Wire scoring service
+- Connect UI toggle
+- Test output weighting 
+
+---
+
+## 2. Current Branch / Environment
+
+Git Branch:
+<main / dev / feature-x>
+
+Environment:
+- Local / Docker / Cloud
+
+---
+
+## 3. Active Files
+
+Files Being Modified:
+- <path/file1.ts>
+- <path/file2.tsx>
+- <path/file3.ts>
+
+---
+
+## 4. Decisions Made This Session
+
+- 
+- 
+- 
+
+---
+
+## 5. Open Questions / Blockers
+
+- 
+- 
+- 
+
+---
+
+## 6. Next Actions (When I Return)
+
+1. 
+2. 
+3. 
+
+---
+
+## 7. Claude / LLM Instructions (Session)
+
+Mode:
+- Minimal tokens
+- Diff only
+- No explanations
+- Silent execution
+
+Header:
+
+"You are a senior engineer.
+
+Rules:
+- Minimal tokens
+- Diffs only
+- No explanations
+- No restating
+- Silent execution
+- Assume prior context
+
+Output only required changes."
+
+---
+
+## 8. Notes / Scratchpad
+
+<Temporary ideas, links, reminders>
+

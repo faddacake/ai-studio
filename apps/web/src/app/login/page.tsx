@@ -51,36 +51,104 @@ export default function LoginPage() {
   if (checking) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--color-bg-primary)" }}>
-      <div className="w-full max-w-sm p-8 rounded-lg" style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)" }}>
-        <h1 className="text-2xl font-bold mb-6 text-center" style={{ color: "var(--color-text-primary)" }}>
-          AI Studio
-        </h1>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "var(--color-bg-primary)",
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 400,
+          padding: 32,
+          borderRadius: 16,
+          backgroundColor: "var(--color-surface)",
+          border: "1px solid var(--color-border)",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <h1
+            style={{
+              fontSize: 22,
+              fontWeight: 800,
+              color: "var(--color-text-primary)",
+              letterSpacing: "-0.02em",
+              marginBottom: 6,
+            }}
+          >
+            AI Studio
+          </h1>
+          <p style={{ fontSize: 14, color: "var(--color-text-muted)" }}>
+            Sign in to your local instance
+          </p>
+        </div>
+
         <form onSubmit={handleSubmit}>
-          <label className="block text-sm mb-2" style={{ color: "var(--color-text-secondary)" }}>
+          <label
+            htmlFor="password"
+            style={{ display: "block", fontSize: 13, fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 6 }}
+          >
             Password
           </label>
           <input
+            id="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-2 rounded mb-4 outline-none"
-            style={{ background: "var(--color-bg-secondary)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+            placeholder="Enter your password"
             autoFocus
             required
+            style={{
+              width: "100%",
+              padding: "11px 14px",
+              borderRadius: 8,
+              backgroundColor: "var(--color-bg-primary)",
+              border: "1px solid var(--color-border)",
+              color: "var(--color-text-primary)",
+              fontSize: 14,
+              outline: "none",
+              boxSizing: "border-box",
+              marginBottom: 16,
+            }}
           />
+
           {error && (
-            <p className="text-sm mb-4" style={{ color: "var(--color-error)" }}>{error}</p>
+            <p
+              role="alert"
+              style={{ fontSize: 13, color: "var(--color-error)", marginBottom: 16 }}
+            >
+              {error}
+            </p>
           )}
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2 rounded font-medium transition-colors"
-            style={{ background: "var(--color-accent)", color: "#fff" }}
+            style={{
+              width: "100%",
+              padding: "11px 0",
+              borderRadius: 8,
+              backgroundColor: "var(--color-accent)",
+              color: "#fff",
+              border: "none",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: loading ? "default" : "pointer",
+              opacity: loading ? 0.7 : 1,
+            }}
           >
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
+
+        <p style={{ textAlign: "center", marginTop: 20, fontSize: 12, color: "var(--color-text-muted)" }}>
+          Single-user instance. No account needed.
+        </p>
       </div>
     </div>
   );

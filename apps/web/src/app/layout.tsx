@@ -1,9 +1,27 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Studio",
-  description: "Self-hosted AI workflow builder",
+  title: {
+    default: "AI Studio — Self-Hosted AI Workflow Builder",
+    template: "%s — AI Studio",
+  },
+  description:
+    "Build AI workflows, run multi-model comparisons, control costs, and generate assets locally. Self-hosted, privacy-first, Docker-ready.",
+  openGraph: {
+    title: "AI Studio — Self-Hosted AI Workflow Builder",
+    description:
+      "Build AI workflows, run multi-model comparisons, control costs, and generate assets locally.",
+    siteName: "AI Studio",
+    type: "website",
+  },
+  robots: { index: true, follow: true },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#0a0a0a",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

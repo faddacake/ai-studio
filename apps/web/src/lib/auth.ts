@@ -63,5 +63,8 @@ export function getPasswordHash(): string | null {
 
 export function setPasswordHash(hash: string): void {
   const db = getDb();
-  db.insert(schema.settings).values({ key: "password_hash", value: hash }).run();
+  db.insert(schema.settings)
+    .values({ key: "password_hash", value: hash })
+    .onConflictDoUpdate({ target: schema.settings.key, set: { value: hash } })
+    .run();
 }

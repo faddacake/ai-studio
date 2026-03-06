@@ -1,0 +1,211 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+
+export default function SettingsPage() {
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwMsg, setPwMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleChangePassword() {
+    setPwMsg(null);
+    if (newPw.length < 8) {
+      setPwMsg({ type: "error", text: "New password must be at least 8 characters." });
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setPwMsg({ type: "error", text: "New passwords do not match." });
+      return;
+    }
+
+    setSaving(true);
+    const res = await fetch("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
+    });
+
+    if (res.ok) {
+      setPwMsg({ type: "success", text: "Password changed successfully." });
+      setCurrentPw("");
+      setNewPw("");
+      setConfirmPw("");
+    } else {
+      const data = await res.json();
+      setPwMsg({ type: "error", text: data.message || "Failed to change password." });
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div style={{ padding: 32, maxWidth: 640 }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--color-text-primary)", marginBottom: 32 }}>
+        Settings
+      </h1>
+
+      {/* Provider API Keys */}
+      <Section title="AI Providers">
+        <p style={{ fontSize: 14, color: "var(--color-text-secondary)", marginBottom: 12 }}>
+          Configure API keys for your AI providers to start generating content.
+        </p>
+        <Link
+          href="/settings/providers"
+          style={{
+            display: "inline-block",
+            padding: "9px 18px",
+            backgroundColor: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+            borderRadius: 8,
+            color: "var(--color-text-primary)",
+            fontSize: 14,
+            fontWeight: 500,
+            textDecoration: "none",
+            transition: "background-color 100ms ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "var(--color-surface-hover)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "var(--color-surface)";
+          }}
+        >
+          Manage Providers
+        </Link>
+      </Section>
+
+      {/* Change Password */}
+      <Section title="Change Password">
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <InputField
+            label="Current Password"
+            type="password"
+            value={currentPw}
+            onChange={setCurrentPw}
+            placeholder="Enter current password"
+          />
+          <InputField
+            label="New Password"
+            type="password"
+            value={newPw}
+            onChange={setNewPw}
+            placeholder="Minimum 8 characters"
+          />
+          <InputField
+            label="Confirm New Password"
+            type="password"
+            value={confirmPw}
+            onChange={setConfirmPw}
+            placeholder="Re-enter new password"
+          />
+          {pwMsg && (
+            <p
+              style={{
+                fontSize: 13,
+                color: pwMsg.type === "success" ? "var(--color-success)" : "var(--color-error)",
+              }}
+            >
+              {pwMsg.text}
+            </p>
+          )}
+          <div>
+            <button
+              onClick={handleChangePassword}
+              disabled={saving || !currentPw || !newPw || !confirmPw}
+              style={{
+                padding: "9px 18px",
+                backgroundColor:
+                  currentPw && newPw && confirmPw ? "var(--color-accent)" : "var(--color-surface)",
+                border: "none",
+                borderRadius: 8,
+                color: currentPw && newPw && confirmPw ? "#fff" : "var(--color-text-muted)",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: currentPw && newPw && confirmPw ? "pointer" : "default",
+              }}
+            >
+              {saving ? "Saving..." : "Update Password"}
+            </button>
+          </div>
+        </div>
+      </Section>
+
+      {/* About */}
+      <Section title="About">
+        <div style={{ fontSize: 14, color: "var(--color-text-secondary)", lineHeight: 1.8 }}>
+          <p><strong style={{ color: "var(--color-text-primary)" }}>AI Studio</strong></p>
+          <p>Self-hosted AI workflow builder</p>
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        marginBottom: 28,
+        padding: 20,
+        backgroundColor: "var(--color-surface)",
+        border: "1px solid var(--color-border)",
+        borderRadius: 10,
+      }}
+    >
+      <h2
+        style={{
+          fontSize: 16,
+          fontWeight: 600,
+          color: "var(--color-text-primary)",
+          marginBottom: 14,
+        }}
+      >
+        {title}
+      </h2>
+      {children}
+    </div>
+  );
+}
+
+function InputField({
+  label,
+  type = "text",
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  type?: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <label style={{ display: "block" }}>
+      <span
+        style={{ fontSize: 13, color: "var(--color-text-secondary)", display: "block", marginBottom: 5 }}
+      >
+        {label}
+      </span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          backgroundColor: "var(--color-bg-primary)",
+          border: "1px solid var(--color-border)",
+          borderRadius: 8,
+          color: "var(--color-text-primary)",
+          fontSize: 14,
+          outline: "none",
+          boxSizing: "border-box",
+        }}
+      />
+    </label>
+  );
+}

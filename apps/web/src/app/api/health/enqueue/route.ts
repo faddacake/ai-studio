@@ -1,17 +1,24 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { Queue } from "bullmq";
+import { getPredictionsQueue } from "@/lib/queues/predictionsQueue";
 
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+export async function GET() {
+  const predictionsQueue = getPredictionsQueue();
+  const jobId = `test-${Date.now()}`;
 
-// Create queue inline (this route is temporary for scaffolding verification)
-const predictionsQueue = new Queue("predictions", {
-  connection: { url: REDIS_URL },
-});
+  const job = await predictionsQueue.add("test-job", {
+    type: "dummy",
+    message: "Hello from API server",
+    timestamp: new Date().toISOString(),
+  }, { jobId });
+
+  return Response.json({ ok: true, jobId: job.id });
+}
 
 export async function POST() {
   try {
+    const predictionsQueue = getPredictionsQueue();
     const jobId = `test-${Date.now()}`;
     const job = await predictionsQueue.add("test-job", {
       type: "dummy",

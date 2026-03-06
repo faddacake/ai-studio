@@ -2,10 +2,17 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 
+const SERVER_BOOT = new Date().toISOString();
+if (process.env.NODE_ENV !== "production") {
+  console.log(`[health] Server module loaded at ${SERVER_BOOT} | NODE_ENV=${process.env.NODE_ENV} | PORT=${process.env.PORT ?? "default"}`);
+}
+
 export async function GET() {
   const health: Record<string, unknown> = {
     status: "ok",
     timestamp: new Date().toISOString(),
+    serverBoot: SERVER_BOOT,
+    nodeEnv: process.env.NODE_ENV,
   };
 
   // DB check — optional, don't fail liveness if DB is unavailable

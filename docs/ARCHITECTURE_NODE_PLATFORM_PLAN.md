@@ -55,23 +55,121 @@ Date: 2026-03-05
 
 ---
 
-## 3. What Still Remains to Be Migrated
+## 3. What Was Added in Session 2 — Inspector + Execution Engine
 
-### Inspector panel
-The `NodeConfig.tsx` inspector currently does not consume `parameterSchema` from the registry. It needs to be updated to:
-1. Query `nodeRegistry.get(selectedNode.type)` for the definition.
-2. Render form fields from `parameterSchema` and `uiSchema`.
-3. Fall back to raw JSON editor for unrecognized fields.
+### Schema-driven Inspector Components (`apps/web/src/components/inspector/`)
 
-### Node palette
-`NodePalette.tsx` currently fetches models from API routes. It should also query `nodeRegistry.getAvailable()` to show utility and capability nodes alongside provider models.
+| File | Purpose |
+|------|---------|
+| `SchemaField.tsx` | Atomic field renderer for all parameter types. Infers widget from `NodeParameterField.type` (text, textarea, slider, toggle, dropdown, upload, json, color). Zero knowledge of specific models. |
+| `SchemaForm.tsx` | Renders complete parameter forms from `parameterSchema` + `uiSchema`. Supports collapsible grouped sections, hidden fields, widget overrides. Falls back to flat rendering if no groups. |
+| `NodeConfig.tsx` | Schema-driven config panel. Queries `nodeRegistry.get(node.type)`, renders SchemaForm from definition, validates with `validateParams()`, shows cost badge, falls back to raw JSON editor for unknown types. |
+| `InspectorPanel.tsx` | Right-side panel with 3 tabs: Config (NodeConfig), Ports (color-coded port list), Run (placeholder for SSE). |
+| `index.ts` | Barrel export for all inspector components. |
 
-### Engine executor
-`packages/engine/src/executor.ts` needs to use `nodeRegistry.get(node.type).runtimeKind` to dispatch:
-- `provider` → adapter call
-- `local` → local executor (sharp, template resolution)
-- `capability` → service call (scoring, formatting)
-- `virtual` → passthrough
+### Execution Engine (`packages/engine/src/`)
+
+| File | Purpose |
+|------|---------|
+| `executionGraph.ts` | `buildExecutionGraph()` — DAG builder from WorkflowGraph. Kahn's topological sort with cycle detection. `computeTiers()` for parallel scheduling. `getReadyNodes()` returns pending nodes whose deps are complete. `resolveNodeInputs()` maps upstream outputs to downstream input ports via edges. |
+| `runCoordinator.ts` | `RunCoordinator` — manages run lifecycle. Node state machine: pending→queued→running→completed/failed/cancelled. Run state machine: pending→running→completed/failed/partial_failure/cancelled/budget_exceeded. Event system (`RunEvent` types). Budget cap enforcement. Downstream cancellation on failure. `DispatchJob` callback for queue integration. |
+| `executor.ts` | `NodeExecutor` — dispatch by `NodeRuntimeKind`: provider→`ProviderExecutor`, local→`LocalExecutor` map, capability→`CapabilityExecutor` map, virtual→passthrough. Resolves node type via `__nodeType` param or `providerId/modelId` fallback. Runs `definition.validate()` before execution. |
+| `index.ts` | Updated from stub to full exports of all engine modules. |
+
+### Worker Integration (`packages/worker/src/`)
+
+| File | Purpose |
+|------|---------|
+| `nodeJobProcessor.ts` | `processNodeJob()` — bridges BullMQ jobs and the engine executor. Builds `NodeExecutionContext` from `NodeJobData`, delegates to `nodeExecutor.execute()`, returns `NodeJobResult`. |
+| `index.ts` | Updated to use `nodeJobProcessor` in prediction job handler. |
+| `package.json` | Added `@aistudio/engine` and `@aistudio/shared` workspace dependencies. |
+
+---
+
+## 4. What Was Added in Session 3 — Registry-Aware Node Palette
+
+### Canvas Components (`apps/web/src/components/canvas/`)
+
+| File | Purpose |
+|------|---------|
+| `NodePalette.tsx` | Registry-driven palette sidebar. Calls `nodeRegistry.getAvailable()` for all node listings — no hardcoded lists. Groups by `NodeCategory` (with Input/Output merged). Text filter searches label, description, type, and tags. Shows label, description, runtime badge, port counts, and provider ID. Collapsible category sections. |
+| `createWorkflowNode.ts` | `createWorkflowNode(definition, position)` — converts a `NodeDefinition` into a `WorkflowNode` with correct type, default params via `getDefaultParams()`, ports via `toWorkflowPorts()`, provider info, and sensible retry/timeout defaults by runtime kind. |
+| `index.ts` | Barrel export for all canvas components. |
+
+### How it works
+
+1. On mount, `NodePalette` calls `initializeNodeRegistry()` (idempotent) which registers built-in nodes + model catalog entries via the model bridge.
+2. All node listings come from `nodeRegistry.getAvailable()` — a single source of truth.
+3. Nodes are grouped by `NodeCategory` using a display-order map. Input and Output share a group.
+4. The search filter matches against `label`, `description`, `type`, and `tags` (case-insensitive substring).
+5. When a user clicks a node, `createWorkflowNode()` builds a complete `WorkflowNode` from the definition with correct defaults, ports, and provider metadata.
+6. Model catalog entries (IMAGE_MODELS, VIDEO_MODELS) flow through the model bridge → registry → palette. No parallel data source.
+
+---
+
+## 4b. What Was Added in Session 4 — Workflow Debugger
+
+### Engine Debug Helper (`packages/engine/src/debugSnapshot.ts`)
+
+| Export | Purpose |
+|--------|---------|
+| `buildDebugSnapshot(run)` | Projects `RunState` + `ExecutionGraph` into a flat, serializable `RunDebugSnapshot` for the debugger UI. Computes tier assignments, topological order indices, blocked reasons, output key summaries, and per-status counts. |
+| `buildGraphPreview(graph)` | Preview-only variant for showing execution order / tiers before a run starts (no run state needed). |
+| `NodeDebugInfo` | Per-node structure with label, type, runtimeKind, status, tier, topoIndex, dependencies, dependents, attempt, timing, cost, error, blockedReason, outputKeys, inputKeys, providerId, modelId. |
+| `BlockedReason` | Discriminated union: `waiting_on_dependency`, `failed_upstream`, `cancelled_upstream`, `budget_exceeded`, `validation_error`, `run_cancelled`. |
+| `RunDebugSnapshot` | Run-level snapshot with summary counts, tiers, execution order, all NodeDebugInfo, cost/budget/timing. |
+
+### Debugger UI (`apps/web/src/components/debugger/`)
+
+| File | Purpose |
+|------|---------|
+| `RunDebuggerPanel.tsx` | Debugger panel showing: run status badge, interactive summary pills (filter by status), cost/budget/timing, tier view vs flat topological view, collapsible per-node rows with status dot + runtime badge + duration, expanded detail showing type/ID/tier/topo-order/attempts/provider/model/timing/dependencies/dependents/data-flow/blocked-reason/error. |
+| `index.ts` | Barrel export. |
+
+### How it works
+
+1. The engine's `buildDebugSnapshot(runState)` shapes a `RunState` into a flat `RunDebugSnapshot` — one function call, fully serializable.
+2. `RunDebuggerPanel` takes this snapshot as a prop and renders everything from it. No engine imports in the UI beyond types.
+3. Blocked reasons are computed from the graph topology + node states: why a node is waiting, which upstream failed, whether budget stopped it, etc.
+4. Two view modes: **Tier view** groups nodes by execution tier (parallel scheduling level), **Flat view** shows topological order.
+5. Summary pills act as status filters — click to filter the node list to just failed, running, etc.
+6. The `onNodeClick` callback enables future canvas highlighting integration.
+7. `buildGraphPreview(graph)` enables showing execution order before a run starts.
+
+## 4c. What Was Added in Session 5 — React Flow Canvas Integration
+
+### Zustand Workflow Store (`apps/web/src/stores/workflowStore.ts`)
+
+| Export | Purpose |
+|--------|---------|
+| `useWorkflowStore` | Zustand store managing workflow nodes, edges, selection, palette/inspector/debugger UI state, save/load, and all React Flow callbacks (onNodesChange, onEdgesChange, onConnect). |
+| `toFlowNode()` / `toFlowEdge()` | Adapters converting `WorkflowNode`/`WorkflowEdge` to React Flow `Node`/`Edge`. |
+| `fromFlowNode()` | Reverse adapter for extracting `WorkflowNode` from React Flow state. |
+
+### Canvas Components (`apps/web/src/components/canvas/`)
+
+| File | Purpose |
+|------|---------|
+| `CustomNode.tsx` | Memoized React Flow custom node with color-coded port handles (left=inputs, right=outputs), label, runtime kind badge, and selection ring. Handle positions auto-distribute based on port count. |
+| `WorkflowCanvas.tsx` | Main canvas composition: ReactFlowProvider wrapper, ReactFlow with Background/Controls/MiniMap, NodePalette (left), InspectorPanel (right, on selection), RunDebuggerPanel (bottom, toggleable). Save button with dirty state tracking. Keyboard shortcut Cmd+S to save. |
+
+### Workflow Editor Page (`apps/web/src/app/(app)/workflows/[id]/page.tsx`)
+
+Replaced placeholder with full client component that fetches workflow from API, parses the graph JSON, loads it into the Zustand store, and renders `WorkflowCanvas`.
+
+### How it works
+
+1. The Zustand store (`useWorkflowStore`) is the single source of truth for all canvas state — nodes, edges, selection, UI panel visibility, and dirty tracking.
+2. `WorkflowCanvas` wraps `ReactFlow` in a `ReactFlowProvider` and composes all sidebar panels: `NodePalette` (left), `InspectorPanel` (right on selection), `RunDebuggerPanel` (bottom on toggle).
+3. `CustomNode` renders each node with color-coded port handles matching the port type (image=purple, video=orange, text=green, number=blue, json=yellow) and a runtime kind badge (AI/Local/Virtual/Cap).
+4. The palette's `onAddNode` callback creates nodes centered in the viewport via `screenToFlowPosition`.
+5. Clicking a node opens the inspector; clicking the pane deselects. `InspectorPanel` receives a `WorkflowNode` reconstructed from React Flow state via `fromFlowNode()`.
+6. The save button persists the graph via `PATCH /api/workflows/:id` with `getWorkflowGraph()` reconstructing the `WorkflowGraph` from React Flow state.
+7. `@xyflow/react` and `zustand` added as dependencies.
+
+---
+
+## 5. What Still Remains to Be Migrated
 
 ### Capability executors
 The existing services (`qualityScoring.ts`, `socialFormatter.ts`, `exportService.ts`) need thin wrapper executors that implement the `NodeExecutionContext → NodeExecutionResult` contract.
@@ -79,31 +177,43 @@ The existing services (`qualityScoring.ts`, `socialFormatter.ts`, `exportService
 ### Provider adapter unification
 The thin `ProviderAdapter` interface in `apps/web/src/lib/providers/types.ts` (`generate(input)`) should be deprecated in favor of the richer `ProviderAdapter` interface in `packages/adapters/src/types.ts`. The model catalog in `config/models.ts` should eventually be replaced by dynamic adapter discovery.
 
-### Worker dispatch
-`packages/worker/src/predictionRunner.ts` should query the registry to determine runtime kind before dispatching.
+### Local executors
+Utility nodes (resize, crop, format-convert) need local executor implementations using sharp. Register them via `nodeExecutor.registerLocal()` at worker startup.
+
+### SSE integration for run progress
+The InspectorPanel's "Run" tab is a placeholder. Wire it to `RunCoordinator` events via SSE to show real-time per-node progress during workflow execution.
 
 ---
 
-## 4. Recommended Next 5 Implementation Steps
+## 5. Recommended Next Implementation Steps
 
-### Step 1: Schema-driven inspector rendering
-Update `InspectorPanel.tsx` / `NodeConfig.tsx` to read `parameterSchema` and `uiSchema` from the registry and render forms dynamically. This is the highest-leverage change — it eliminates per-model UI code and proves the registry is useful.
+~~Step 1: Schema-driven inspector rendering~~ — **DONE** (SchemaField, SchemaForm, NodeConfig, InspectorPanel)
 
-### Step 2: Registry-aware node palette
-Update `NodePalette.tsx` to include utility nodes (resize, crop, etc.) and capability nodes (scoring, formatting, export) from the registry. Group by `NodeCategory`.
+~~Step 2: Engine runtime dispatch~~ — **DONE** (NodeExecutor with runtimeKind dispatch, RunCoordinator, ExecutionGraph)
 
-### Step 3: Engine runtime dispatch
-Update `executor.ts` to use `nodeRegistry.getOrThrow(node.type).runtimeKind` for dispatch routing. Add local executors for utility nodes (resize/crop/format-convert using sharp). This enables utility nodes to actually execute in workflows.
+~~Step 3: Worker integration~~ — **DONE** (nodeJobProcessor.ts wired into BullMQ worker)
 
-### Step 4: Capability executors for scoring and formatting
-Create executor wrappers for `clipScoringNode` and `socialFormatNode` that call the existing services but conform to the `NodeExecutionContext → NodeExecutionResult` contract. This makes them usable as workflow nodes.
+~~Step 4: Registry-aware node palette~~ — **DONE** (NodePalette.tsx, createWorkflowNode.ts)
 
-### Step 5: Deprecate dual adapter interfaces
-Consolidate the thin `ProviderAdapter` in `apps/web/src/lib/providers/types.ts` with the richer one in `packages/adapters/src/types.ts`. Update the web app's provider registry to use the canonical interface.
+~~Step 4b: Workflow debugger~~ — **DONE** (debugSnapshot.ts, RunDebuggerPanel.tsx)
+
+~~Step 5: React Flow canvas integration~~ — **DONE** (WorkflowCanvas.tsx, CustomNode.tsx, workflowStore.ts, editor page wired up)
+
+### Step 6: Local executors for utility nodes
+Implement sharp-based local executors for resize, crop, and format-convert nodes. Register them via `nodeExecutor.registerLocal()` at worker startup. This enables utility nodes to actually execute in workflows.
+
+### Step 7: Capability executors for scoring and formatting
+Create executor wrappers for `clipScoringNode` and `socialFormatNode` that call the existing services but conform to the `NodeExecutionContext → NodeExecutionResult` contract.
+
+### Step 8: Deprecate dual adapter interfaces
+Consolidate the thin `ProviderAdapter` in `apps/web/src/lib/providers/types.ts` with the richer one in `packages/adapters/src/types.ts`.
+
+### Step 9: SSE run progress
+Wire `RunCoordinator` events to the frontend via Server-Sent Events so the InspectorPanel's Run tab shows real-time per-node progress.
 
 ---
 
-## 5. Which Current Features Should Be Converted Into Nodes Next
+## 6. Which Current Features Should Be Converted Into Nodes Next
 
 | Feature | Current Location | Priority | Rationale |
 |---------|-----------------|----------|-----------|
@@ -117,7 +227,7 @@ Consolidate the thin `ProviderAdapter` in `apps/web/src/lib/providers/types.ts` 
 
 ---
 
-## 6. Which Current Page-Level Features Are Acceptable to Leave Alone
+## 7. Which Current Page-Level Features Are Acceptable to Leave Alone
 
 | Feature | Location | Why It's Fine |
 |---------|----------|---------------|

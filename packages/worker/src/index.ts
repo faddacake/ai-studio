@@ -1,7 +1,8 @@
 import { Worker, Queue } from "bullmq";
 import { getDb, closeDb, checkpoint } from "@aistudio/db";
+import { processNodeJob, type NodeJobData, type NodeJobResult } from "./nodeJobProcessor.js";
 
-const REDIS_URL = process.env.REDIS_URL || "redis://redis:639";
+const REDIS_URL = process.env.REDIS_URL || "redis://redis:6379";
 const redisConnection = { url: REDIS_URL };
 
 // --- Queues (also used by the API server to enqueue jobs) ---
@@ -27,17 +28,28 @@ export const downloadsQueue = new Queue("downloads", {
 
 // --- Workers (only run in the worker process) ---
 
-async function processPredictionJob(job: { id?: string; data: Record<string, unknown> }) {
-  console.log(`[worker] Processing prediction job ${job.id}`, job.data);
-  // Placeholder: real implementation in T-024
-  // For now, just prove the loop works
-  const db = getDb();
-  console.log(`[worker] DB connected, job ${job.id} processed successfully`);
-  return { status: "completed" };
+async function processPredictionJob(job: { id?: string; data: Record<string, unknown> }): Promise<NodeJobResult> {
+  console.log(`[worker] Processing prediction job ${job.id}`);
+
+  // Ensure DB is connected
+  getDb();
+
+  const jobData = job.data as unknown as NodeJobData;
+  const result = await processNodeJob(jobData);
+
+  if (result.status === "failed") {
+    console.error(`[worker] Node ${result.nodeId} failed: ${result.error}`);
+  } else {
+    console.log(`[worker] Node ${result.nodeId} completed (cost: $${result.cost?.toFixed(4) ?? "0"})`);
+  }
+
+  return result;
 }
 
 async function processDownloadJob(job: { id?: string; data: Record<string, unknown> }) {
   console.log(`[worker] Processing download job ${job.id}`, job.data);
+  // Download worker implementation will stream assets to disk
+  // For now, return success
   return { status: "completed" };
 }
 
@@ -97,4 +109,5 @@ if (isMainModule) {
   startWorkers();
 }
 
-export { startWorkers };
+export { startWorkers, processNodeJob };
+export type { NodeJobData, NodeJobResult };

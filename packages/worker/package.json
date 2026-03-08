@@ -16,7 +16,9 @@
   "dependencies": {
     "bullmq": "^5.31.0",
     "ioredis": "^5.4.2",
-    "@aistudio/db": "workspace:*"
+    "@aistudio/db": "workspace:*",
+    "@aistudio/engine": "workspace:*",
+    "@aistudio/shared": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.2",

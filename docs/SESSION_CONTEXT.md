@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
-Date: 2026-03-07
-Session: Candidate Data Contract
+Date: 2026-03-08
+Session: Template Gallery UI Polish
 
 ---
 
@@ -106,7 +106,7 @@ Completed (Session 11 — uncommitted):
 - [x] Fixed engine test script glob to match test files at all directory levels
 - [x] Updated architecture and session docs
 
-Completed (Session 12 — uncommitted):
+Completed (Session 12 — committed as `7e68ce5`):
 - [x] Created template pack types with Zod validation (TemplatePackManifest, TemplatePack, TemplateEntry)
 - [x] Created TemplatePackLoader class with register/lookup/filter/availability checking
 - [x] Created parseTemplatePack() for JSON import validation
@@ -115,6 +115,27 @@ Completed (Session 12 — uncommitted):
 - [x] Added 12 tests covering loader, parser, availability, error handling
 - [x] Added test script and tsx dev dependency to shared package.json
 - [x] Created TEMPLATE_PACKS_PLAN.md documentation
+- [x] Updated architecture and session docs
+
+Completed (Session 13 — uncommitted):
+- [x] Created TemplatePicker modal component with category grouping, source/availability badges, and text search
+- [x] Added 6-mode filter system: All, Available, Unavailable, Built-in, Imported, Packs
+- [x] Wired TemplatePicker into WorkflowCanvas with Templates button in top bar
+- [x] Added templatePickerOpen state and toggleTemplatePicker action to Zustand workflow store
+- [x] Template selection loads WorkflowGraph into store via existing loadWorkflow() — preserves editor compatibility
+- [x] Built-in packs auto-registered on first TemplatePicker mount via registerBuiltInPacks()
+- [x] Updated barrel exports in canvas/index.ts
+- [x] Updated architecture and session docs
+
+Completed (Session 14 — uncommitted):
+- [x] Upgraded TemplatePicker to product-grade "Template Gallery" with polished UI
+- [x] Replaced filter pills with underline-style tab row (All, Built-in, Imported, My Templates, Packs) with per-tab counts
+- [x] Added color-coded source badges: Built-in (blue), My Template (violet), Imported (cyan), Premium (amber)
+- [x] Added pack badge with briefcase icon on multi-template pack cards
+- [x] Added availability dot indicator (green=ready, amber=missing deps) with footer legend
+- [x] Added tag pills on template cards (first 3 tags + overflow count)
+- [x] Added node/edge count icons, search icon, warning icon for missing deps, empty state with illustration
+- [x] Added pack description search, gallery subtitle text
 - [x] Updated architecture and session docs
 
 ---
@@ -128,17 +149,9 @@ Environment: Local / macOS
 
 ## 3. Active Files
 
-Files Created (Session 12):
-- packages/shared/src/templatePack.ts
-- packages/shared/src/builtinPacks.ts
-- packages/shared/src/templatePack.test.ts
-- templates/packs/social-content-pipeline.json
-- docs/TEMPLATE_PACKS_PLAN.md
-
-Files Modified (Session 12):
-- packages/shared/src/index.ts (added template pack exports)
-- packages/shared/package.json (added test script and tsx dev dependency)
-- docs/ARCHITECTURE_NODE_PLATFORM_PLAN.md (added Session 12 / section 4j)
+Files Modified (Session 14):
+- apps/web/src/components/canvas/TemplatePicker.tsx (upgraded to gallery UI with tabs, badges, pack labels, icons)
+- docs/ARCHITECTURE_NODE_PLATFORM_PLAN.md (added Session 14 / section 4l)
 - docs/SESSION_CONTEXT.md (this file)
 
 ---
@@ -165,12 +178,12 @@ Files Modified (Session 12):
 
 ## 6. Next Actions (When I Return)
 
-1. Template picker UI — modal/palette showing templates from templatePackLoader, load into workflow store
-2. Template import from file — file picker → parseTemplatePack() → register imported pack
-3. Error handling E2E test — node failure → downstream cancellation → partial_failure run status
-4. Local executors — sharp-based resize/crop/format-convert implementations
-5. Best-of-N generation node — generate N variants, auto-score, select best using candidate contract
-6. Connection validation — use PORT_COMPATIBILITY to validate edge connections
+1. Template import from file — file picker in TemplatePicker modal → parseTemplatePack() → register imported pack at runtime
+2. Error handling E2E test — node failure → downstream cancellation → partial_failure run status
+3. Local executors — sharp-based resize/crop/format-convert implementations
+4. Best-of-N generation node — generate N variants, auto-score, select best using candidate contract
+5. Connection validation — use PORT_COMPATIBILITY to validate edge connections
+6. Template save-as — export current workflow graph as a user template pack
 
 ---
 

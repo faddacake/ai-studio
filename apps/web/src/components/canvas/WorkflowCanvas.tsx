@@ -12,9 +12,10 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import type { WorkflowNode } from "@aistudio/shared";
+import type { WorkflowNode, WorkflowGraph } from "@aistudio/shared";
 import { useWorkflowStore, fromFlowNode } from "@/stores/workflowStore";
 import { NodePalette } from "./NodePalette";
+import { TemplatePicker } from "./TemplatePicker";
 import { CustomNode } from "./CustomNode";
 import { InspectorPanel } from "@/components/inspector";
 import { RunDebuggerPanel } from "@/components/debugger";
@@ -36,14 +37,17 @@ function CanvasInner() {
     paletteOpen,
     inspectorOpen,
     debuggerOpen,
+    templatePickerOpen,
     debugSnapshot,
     dirty,
     saving,
     addNode,
     selectNode,
     updateNodeParam,
+    loadWorkflow,
     togglePalette,
     toggleDebugger,
+    toggleTemplatePicker,
     saveGraph,
   } = useWorkflowStore();
 
@@ -81,6 +85,19 @@ function CanvasInner() {
   const handlePaneClick = useCallback(() => {
     selectNode(null);
   }, [selectNode]);
+
+  // Load a template graph into the store
+  const handleTemplateSelect = useCallback(
+    (graph: WorkflowGraph, name: string) => {
+      const meta = useWorkflowStore.getState().meta;
+      if (meta) {
+        loadWorkflow(meta, graph);
+      } else {
+        loadWorkflow({ id: crypto.randomUUID(), name, description: "" }, graph);
+      }
+    },
+    [loadWorkflow],
+  );
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback(
@@ -134,6 +151,17 @@ function CanvasInner() {
         <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
           <button
             type="button"
+            onClick={toggleTemplatePicker}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              templatePickerOpen
+                ? "border-purple-500 bg-purple-500/10 text-purple-400"
+                : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
+            }`}
+          >
+            Templates
+          </button>
+          <button
+            type="button"
             onClick={toggleDebugger}
             className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
               debuggerOpen
@@ -176,6 +204,13 @@ function CanvasInner() {
           />
         </div>
       )}
+
+      {/* Template Picker Modal */}
+      <TemplatePicker
+        open={templatePickerOpen}
+        onClose={toggleTemplatePicker}
+        onSelect={handleTemplateSelect}
+      />
     </div>
   );
 }

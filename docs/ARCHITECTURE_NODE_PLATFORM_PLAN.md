@@ -524,6 +524,72 @@ A minimal template pack system in `packages/shared` with types, a loader, a pars
 
 See `/docs/TEMPLATE_PACKS_PLAN.md` for full details.
 
+## 4k. What Was Added in Session 13 — Template Picker UI
+
+### Problem
+
+Template packs existed in the backend (`TemplatePackLoader`, `registerBuiltInPacks`, built-in JSON packs) but there was no UI for browsing and loading templates into the editor.
+
+### Solution
+
+A modal-based template picker integrated into the workflow canvas, reading from `templatePackLoader` and loading selected `WorkflowGraph` objects into the Zustand store via the existing `loadWorkflow()` action.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `apps/web/src/components/canvas/TemplatePicker.tsx` | Modal component showing all templates from `templatePackLoader`. Groups by category. Shows name, preview description, source badge (Built-in/User/Imported/Premium), availability badge (Ready/Missing deps), pack label, node/edge counts, and missing node types. 6-mode filter: All/Available/Unavailable/Built-in/Imported/Packs. Text search across name, preview, pack name, category, tags. |
+| `apps/web/src/components/canvas/WorkflowCanvas.tsx` | Added Templates button in top bar (next to Debugger). Renders `TemplatePicker` modal. `handleTemplateSelect` loads selected graph via `loadWorkflow()` preserving existing workflow meta. |
+| `apps/web/src/stores/workflowStore.ts` | Added `templatePickerOpen` state and `toggleTemplatePicker()` action. |
+| `apps/web/src/components/canvas/index.ts` | Added `TemplatePicker` and `TemplatePickerProps` exports. |
+
+### How it works
+
+1. User clicks "Templates" button in the canvas top bar → opens modal.
+2. `TemplatePicker` calls `ensurePacksLoaded()` on mount, which runs `registerBuiltInPacks()` once with the built-in JSON pack data.
+3. Templates are read from `templatePackLoader.getAllPacks()`, enriched with availability from `checkAvailability()`.
+4. Templates are grouped by pack category and filtered by the active filter mode + text search.
+5. Each template card shows: display name, source badge, availability badge, preview text, pack name, node/edge count, and missing deps if any.
+6. On click, the selected `WorkflowGraph` is loaded into the Zustand store via `loadWorkflow()`, replacing the current canvas contents but preserving the workflow meta (ID, name, description).
+7. The modal closes after selection.
+
+### What is NOT included
+
+- No file import dialog (add in next session via `parseTemplatePack()`)
+- No "save as template" functionality
+- No template preview/thumbnail images
+- No confirmation dialog before replacing current graph
+
+## 4l. What Was Added in Session 14 — Template Gallery UI Polish
+
+### Problem
+
+The template picker modal from Session 13 was functional but lacked the product-grade polish expected of a user-facing gallery — the filter system used generic pills, badges were minimal, and pack membership wasn't visually distinct.
+
+### Solution
+
+Upgraded the `TemplatePicker` component into a "Template Gallery" with proper tab navigation, richer badges, pack labels, tag pills, micro-icons, and an empty state.
+
+### Changes to `apps/web/src/components/canvas/TemplatePicker.tsx`
+
+| Feature | Before | After |
+|---------|--------|-------|
+| **Filter row** | 6 flat pill buttons (all/available/unavailable/builtin/imported/pack) | 5 underline-style tabs (All/Built-in/Imported/My Templates/Packs) with per-tab counts and active indicator bar |
+| **Source badges** | Color-coded labels: Built-in, User, Imported, Premium | Refined styling with stronger contrast: Built-in (blue), My Template (violet), Imported (cyan), Premium (amber) |
+| **Pack badge** | Pack name shown as gray text in bottom row | Dedicated `PackBadge` component with briefcase icon, only on multi-template pack cards |
+| **Availability** | Full-text "Ready" / "Missing deps" badge | Compact dot indicator (green/amber) on card + legend in footer |
+| **Missing deps** | Inline amber text in bottom row | Dedicated warning row with triangle icon listing all missing node types + providers |
+| **Tags** | Not shown | First 3 pack tags as gray pills + overflow count |
+| **Node/edge counts** | Plain text | Micro-icons (square for nodes, diagonal line for edges) |
+| **Search** | Plain input | Input with search magnifying glass icon |
+| **Empty state** | Plain text | Illustration icon + "Clear search" action link |
+| **Header** | "Templates" | "Template Gallery" + subtitle "Start from a pre-built workflow" |
+| **Footer** | Count text only | Count text + availability legend |
+
+### How it works
+
+Same data flow as Session 13 — all templates from `templatePackLoader`, enriched with `checkAvailability()`, grouped by category. The filter system was simplified from 6 modes to 5 tabs, dropping the "Available" and "Unavailable" filters (availability is now communicated visually via dot indicators instead of requiring a dedicated filter). "My Templates" filter was added for `source === "user"`.
+
 ---
 
 ## 5. What Still Remains to Be Migrated

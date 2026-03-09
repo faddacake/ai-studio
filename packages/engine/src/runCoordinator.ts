@@ -329,6 +329,12 @@ export class RunCoordinator {
 
     for (const nodeId of readyIds) {
       const nodeState = this.getNodeState(run, nodeId);
+
+      // Guard against reentrancy: if a prior dispatch in this loop triggered
+      // a recursive dispatchReadyNodes that already moved this node past pending,
+      // skip it to avoid double-dispatch.
+      if (nodeState.status !== "pending") continue;
+
       const execNode = run.graph.nodes.get(nodeId)!;
 
       // Resolve inputs from upstream outputs

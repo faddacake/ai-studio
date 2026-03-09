@@ -482,7 +482,7 @@ WorkflowGraph (6 nodes, 6 edges)
 
 ### What the next runtime-level gap is
 
-1. **Error handling E2E**: Test node failure → downstream cancellation → `partial_failure` run status
+1. ~~**Error handling E2E**~~ — **DONE** (Session 18): node failure → downstream cancellation → `partial_failure` run status
 2. **Budget enforcement E2E**: Test budget cap → `budget_exceeded` status → pending node cancellation
 3. **BullMQ integration**: Test real queue dispatch with `nodeJobProcessor` bridging BullMQ jobs to executor
 4. **Retry logic**: Test node failure with `retryCount > 0` → re-dispatch → eventual success
@@ -713,6 +713,58 @@ A `templatePackStorage.ts` utility that persists packs to `localStorage` under `
 - No pack deletion UI (removePersistedPack exists but has no button)
 - No storage quota management
 - No migration/versioning of storage format
+
+## 4p. What Was Added in Session 18 — Error Handling E2E Test
+
+### Problem
+
+The Session 11 orchestration test proved the happy path (all nodes succeed), but `RunCoordinator` had untested error handling: `onNodeFailed()`, `cancelDownstream()`, `partial_failure` finalization. Additionally, a reentrancy bug in `dispatchReadyNodes()` caused double-dispatch when the dispatch callback ran synchronously (inline).
+
+### Solution
+
+A dedicated error-handling E2E test with a branching DAG topology, plus a one-line reentrancy guard in the coordinator.
+
+### Test file (`packages/engine/src/error-handling.integration.test.ts`)
+
+**Graph topology:**
+```
+              ┌── ok-branch ── ok-leaf
+root ─────────┤
+              └── fail-node ── downstream (cancelled)
+```
+
+5 nodes, 4 edges. Two independent branches from a shared root. The fail branch throws a simulated error; the success branch completes normally.
+
+9 test cases:
+
+| Test | Verifies |
+|------|----------|
+| Graph topology | 5 nodes, correct dependencies, correct topological order |
+| Run reaches partial_failure | `run.status === "partial_failure"` when one branch fails and one succeeds |
+| Failing node status | `status: "failed"`, error message preserved, completedAt set |
+| Downstream cancellation | Dependent node `status: "cancelled"`, never appears in execution order |
+| Independent branch success | Root, ok-branch, ok-leaf all reach `completed` with outputs |
+| DAG ordering | Root before both branches, ok-branch before ok-leaf |
+| Event stream | `run:started`, `node:failed`, `node:completed` x3, `run:partial_failure`; no `run:completed` or `run:failed` |
+| No cancelled execution | Exactly 4 dispatches (not 5); downstream never dispatched |
+| State summary | 3 completed, 1 failed, 1 cancelled, 0 pending/queued/running |
+
+### Bug fix (`packages/engine/src/runCoordinator.ts`)
+
+Added reentrancy guard in `dispatchReadyNodes()`: before processing each node in the ready list, check if it's still `"pending"`. When dispatch runs inline (as in tests), a recursive `dispatchReadyNodes` call from `onNodeCompleted`/`onNodeFailed` can process nodes that are still in the outer loop's pre-computed `readyIds`. The guard skips nodes that have already been moved past pending by a recursive call, preventing double-dispatch.
+
+### What is tested vs what is still untested
+
+| Component | Status |
+|-----------|--------|
+| `onNodeFailed()` + `cancelDownstream()` | **Tested** |
+| `partial_failure` finalization | **Tested** |
+| Independent branch continuation | **Tested** |
+| Reentrancy guard | **Tested** (implicitly — test would fail without it) |
+| Budget enforcement → `budget_exceeded` | Not tested |
+| Retry logic (`retryCount > 0`) | Not tested |
+| `cancelRun()` external cancellation | Not tested |
+| Multi-level cascading cancellation (>2 tiers) | Not tested (could add) |
 
 ---
 

@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
-Date: 2026-03-08
-Session: Template Pack Persistence
+Date: 2026-03-09
+Session: Error Handling E2E Test
 
 ---
 
@@ -146,7 +146,7 @@ Completed (Session 16 — uncommitted):
 - [x] Validates non-empty name and non-empty graph before export
 - [x] Updated barrel exports, architecture docs, TEMPLATE_PACKS_PLAN.md, and session docs
 
-Completed (Session 17 — uncommitted):
+Completed (Session 17 — committed as `afd3cda`):
 - [x] Created templatePackStorage.ts utility with rehydratePersistedPacks(), persistPack(), removePersistedPack()
 - [x] Stores packs under "aiStudio.templatePacks" localStorage key as JSON array
 - [x] Rehydrates persisted packs on gallery mount (after built-in packs, before first render)
@@ -155,6 +155,16 @@ Completed (Session 17 — uncommitted):
 - [x] Imported packs now persisted automatically after successful import
 - [x] User-created packs (Save as Template) now persisted + registered into loader immediately
 - [x] Updated TEMPLATE_PACKS_PLAN.md, architecture docs, and session docs
+
+Completed (Session 18 — uncommitted):
+- [x] Created error-handling E2E orchestration test (9 test cases, all passing)
+- [x] Verified node failure → downstream cancellation → partial_failure run status
+- [x] Verified cancelled nodes never execute, independent branches still complete
+- [x] Verified event stream includes node:failed, run:partial_failure, no run:completed
+- [x] Verified execution order respects DAG even with failures
+- [x] Verified node state summary: 3 completed, 1 failed, 1 cancelled, 0 pending
+- [x] Fixed reentrancy bug in RunCoordinator.dispatchReadyNodes() — skip nodes already past pending
+- [x] Updated architecture and session docs
 
 ---
 
@@ -167,14 +177,12 @@ Environment: Local / macOS
 
 ## 3. Active Files
 
-Files Created (Session 17):
-- apps/web/src/lib/templatePackStorage.ts
+Files Created (Session 18):
+- packages/engine/src/error-handling.integration.test.ts
 
-Files Modified (Session 17):
-- apps/web/src/components/canvas/TemplatePicker.tsx (added rehydration on mount + persist on import)
-- apps/web/src/components/canvas/SaveAsTemplateDialog.tsx (added persist + register on save)
-- docs/ARCHITECTURE_NODE_PLATFORM_PLAN.md (added Session 17 / section 4o)
-- docs/TEMPLATE_PACKS_PLAN.md (updated persistence section)
+Files Modified (Session 18):
+- packages/engine/src/runCoordinator.ts (reentrancy guard in dispatchReadyNodes)
+- docs/ARCHITECTURE_NODE_PLATFORM_PLAN.md (added Session 18 / section 4p)
 - docs/SESSION_CONTEXT.md (this file)
 
 ---
@@ -201,8 +209,8 @@ Files Modified (Session 17):
 
 ## 6. Next Actions (When I Return)
 
-1. Error handling E2E test — node failure → downstream cancellation → partial_failure run status
-3. Local executors — sharp-based resize/crop/format-convert implementations
+1. Budget enforcement E2E test — budget cap → budget_exceeded status → pending node cancellation
+2. Local executors — sharp-based resize/crop/format-convert implementations
 4. Best-of-N generation node — generate N variants, auto-score, select best using candidate contract
 5. Connection validation — use PORT_COMPATIBILITY to validate edge connections
 6. Confirmation dialog before replacing current graph when loading a template

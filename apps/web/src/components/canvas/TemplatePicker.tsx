@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   templatePackLoader,
   registerBuiltInPacks,
+  parseTemplatePack,
   type TemplateEntry,
   type TemplatePack,
   type PackAvailability,
   type TemplatePackSource,
 } from "@aistudio/shared";
 import type { WorkflowGraph } from "@aistudio/shared";
+import { rehydratePersistedPacks, persistPack } from "@/lib/templatePackStorage";
 
-// ── Load built-in packs on first import ──
+// ── Load built-in packs + rehydrate persisted packs on first import ──
 
 import socialContentPipeline from "../../../../../templates/packs/social-content-pipeline.json";
 
@@ -20,6 +22,7 @@ function ensurePacksLoaded() {
   if (packsRegistered) return;
   packsRegistered = true;
   registerBuiltInPacks([socialContentPipeline]);
+  rehydratePersistedPacks();
 }
 
 // ── Filter types ──
@@ -62,10 +65,77 @@ export interface TemplatePickerProps {
 export function TemplatePicker({ open, onClose, onSelect }: TemplatePickerProps) {
   const [activeTab, setActiveTab] = useState<FilterMode>("all");
   const [search, setSearch] = useState("");
+  const [importCount, setImportCount] = useState(0);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     ensurePacksLoaded();
   }, []);
+
+  // Auto-dismiss success message after 4 seconds
+  useEffect(() => {
+    if (!importSuccess) return;
+    const timer = setTimeout(() => setImportSuccess(null), 4000);
+    return () => clearTimeout(timer);
+  }, [importSuccess]);
+
+  // Handle file import
+  const handleImportClick = useCallback(() => {
+    setImportError(null);
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      // Reset the input so the same file can be re-selected
+      e.target.value = "";
+
+      setImportError(null);
+      setImportSuccess(null);
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const raw = JSON.parse(reader.result as string);
+
+          // Force source to "imported" for user-imported packs
+          if (raw && typeof raw === "object" && raw.manifest) {
+            raw.manifest.source = "imported";
+          }
+
+          const pack = parseTemplatePack(raw);
+
+          // Check for duplicate pack ID
+          if (templatePackLoader.has(pack.manifest.id)) {
+            // Overwrite — re-register
+            templatePackLoader.unregister(pack.manifest.id);
+          }
+
+          templatePackLoader.register(pack);
+          persistPack(pack);
+          setImportCount((c) => c + 1);
+          setActiveTab("imported");
+          setImportSuccess(
+            `Imported "${pack.manifest.name}" with ${pack.manifest.templates.length} template${pack.manifest.templates.length !== 1 ? "s" : ""}`,
+          );
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Invalid template pack file";
+          setImportError(message);
+        }
+      };
+      reader.onerror = () => {
+        setImportError("Failed to read file");
+      };
+      reader.readAsText(file);
+    },
+    [],
+  );
 
   // Build enriched template list
   const enriched = useMemo((): EnrichedTemplate[] => {
@@ -94,7 +164,8 @@ export function TemplatePicker({ open, onClose, onSelect }: TemplatePickerProps)
     }
 
     return result;
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importCount]);
 
   // Compute per-tab counts
   const tabCounts = useMemo(() => {
@@ -171,6 +242,15 @@ export function TemplatePicker({ open, onClose, onSelect }: TemplatePickerProps)
         className="mx-4 flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,application/json"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+
         {/* Header */}
         <div className="flex items-center justify-between border-b border-neutral-800 px-5 py-4">
           <div>
@@ -181,14 +261,54 @@ export function TemplatePicker({ open, onClose, onSelect }: TemplatePickerProps)
               Start from a pre-built workflow
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300"
-          >
-            <XIcon />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleImportClick}
+              className="flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-300 transition-colors hover:bg-neutral-700 hover:text-neutral-100"
+            >
+              <ImportIcon />
+              Import Pack
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-7 w-7 items-center justify-center rounded text-neutral-500 hover:bg-neutral-800 hover:text-neutral-300"
+            >
+              <XIcon />
+            </button>
+          </div>
         </div>
+
+        {/* Import error banner */}
+        {importError && (
+          <div className="flex items-center gap-2 border-b border-red-500/20 bg-red-500/5 px-5 py-2.5">
+            <WarningIcon />
+            <p className="flex-1 text-xs text-red-400">{importError}</p>
+            <button
+              type="button"
+              onClick={() => setImportError(null)}
+              className="text-red-500/60 hover:text-red-400"
+            >
+              <XIcon />
+            </button>
+          </div>
+        )}
+
+        {/* Import success banner */}
+        {importSuccess && (
+          <div className="flex items-center gap-2 border-b border-green-500/20 bg-green-500/5 px-5 py-2.5">
+            <CheckIcon />
+            <p className="flex-1 text-xs text-green-400">{importSuccess}</p>
+            <button
+              type="button"
+              onClick={() => setImportSuccess(null)}
+              className="text-green-500/60 hover:text-green-400"
+            >
+              <XIcon />
+            </button>
+          </div>
+        )}
 
         {/* Tab row */}
         <div className="flex items-center gap-0 border-b border-neutral-800 px-5">
@@ -510,6 +630,24 @@ function WarningIcon() {
       <path d="M5 1L9.5 8.5H0.5L5 1z" />
       <path d="M5 4v2" />
       <circle cx="5" cy="7.2" r="0.3" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function ImportIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2v6" />
+      <path d="M3.5 5.5L6 8l2.5-2.5" />
+      <path d="M2 10h8" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 6.5L5 9l4.5-6" />
     </svg>
   );
 }

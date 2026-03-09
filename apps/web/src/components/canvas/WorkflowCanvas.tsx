@@ -16,6 +16,7 @@ import type { WorkflowNode, WorkflowGraph } from "@aistudio/shared";
 import { useWorkflowStore, fromFlowNode } from "@/stores/workflowStore";
 import { NodePalette } from "./NodePalette";
 import { TemplatePicker } from "./TemplatePicker";
+import { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
 import { CustomNode } from "./CustomNode";
 import { InspectorPanel } from "@/components/inspector";
 import { RunDebuggerPanel } from "@/components/debugger";
@@ -38,6 +39,7 @@ function CanvasInner() {
     inspectorOpen,
     debuggerOpen,
     templatePickerOpen,
+    saveAsTemplateOpen,
     debugSnapshot,
     dirty,
     saving,
@@ -48,7 +50,9 @@ function CanvasInner() {
     togglePalette,
     toggleDebugger,
     toggleTemplatePicker,
+    toggleSaveAsTemplate,
     saveGraph,
+    getWorkflowGraph,
   } = useWorkflowStore();
 
   const { screenToFlowPosition } = useReactFlow();
@@ -183,6 +187,13 @@ function CanvasInner() {
           >
             {saving ? "Saving..." : dirty ? "Save" : "Saved"}
           </button>
+          <button
+            type="button"
+            onClick={toggleSaveAsTemplate}
+            className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-neutral-300"
+          >
+            Save as Template
+          </button>
         </div>
       </div>
 
@@ -210,6 +221,14 @@ function CanvasInner() {
         open={templatePickerOpen}
         onClose={toggleTemplatePicker}
         onSelect={handleTemplateSelect}
+      />
+
+      {/* Save as Template Dialog */}
+      <SaveAsTemplateDialog
+        open={saveAsTemplateOpen}
+        onClose={toggleSaveAsTemplate}
+        getGraph={getWorkflowGraph}
+        defaultName={useWorkflowStore.getState().meta?.name}
       />
     </div>
   );

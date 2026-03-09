@@ -592,6 +592,130 @@ Same data flow as Session 13 — all templates from `templatePackLoader`, enrich
 
 ---
 
+## 4m. What Was Added in Session 15 — Template Pack Import From File
+
+### Problem
+
+The Template Gallery could only display built-in packs. There was no way for users to load external template packs — the `parseTemplatePack()` and `templatePackLoader.register()` APIs existed but had no UI surface.
+
+### Solution
+
+Added an "Import Pack" button to the Template Gallery header that opens a native file picker for JSON files, validates the file client-side via `parseTemplatePack()`, registers it at runtime, and refreshes the gallery immediately.
+
+### Changes to `apps/web/src/components/canvas/TemplatePicker.tsx`
+
+| Feature | Implementation |
+|---------|---------------|
+| **Import button** | "Import Pack" button with download icon in gallery header, triggers hidden `<input type="file" accept=".json">` |
+| **File reading** | Client-side `FileReader.readAsText()` — no server round-trip |
+| **Validation** | `JSON.parse()` → `parseTemplatePack()` (Zod manifest schema + WorkflowGraphSchema per template) |
+| **Source override** | Forces `manifest.source = "imported"` regardless of original source in the JSON |
+| **Registration** | `templatePackLoader.register(pack)` — duplicates are handled by unregistering the old pack first |
+| **Gallery refresh** | `importCount` state counter is a dependency of the `enriched` memo — incrementing it forces recalculation |
+| **Tab switch** | Auto-switches to "Imported" tab after successful import |
+| **Error handling** | Red inline banner with error message and dismiss button; catches JSON parse errors, Zod validation errors, and FileReader errors |
+| **Success feedback** | Green inline banner showing pack name and template count, auto-dismisses after 4 seconds |
+
+### Import flow
+
+```
+User clicks "Import Pack" → file picker opens → user selects .json file
+  → FileReader.readAsText() → JSON.parse()
+    → force source = "imported"
+      → parseTemplatePack() validates manifest + templates
+        → if duplicate: unregister old → register new
+          → importCount++ triggers enriched memo refresh
+            → gallery shows imported templates under "Imported" tab
+```
+
+### What is NOT included
+
+- No persistence — imported packs are lost on page reload (localStorage or DB persistence is future work)
+- No drag-and-drop import
+- No URL-based import (fetch from remote)
+- No pack removal UI (unregister)
+- No pack editing
+
+## 4n. What Was Added in Session 16 — Save As Template
+
+### Problem
+
+Users could import and browse template packs but had no way to export their current workflow as a reusable template pack. The round-trip was incomplete — templates could flow in but not out.
+
+### Solution
+
+A `SaveAsTemplateDialog` component that reads the current workflow graph from the Zustand store, wraps it in a valid `TemplatePack` with `source: "user"`, and triggers a JSON file download.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `apps/web/src/components/canvas/SaveAsTemplateDialog.tsx` | Modal dialog with form fields (name, description, category, tags). Builds `TemplatePackManifest` with auto-derived `requiredNodeTypes` and `requiredProviders` from the graph. Serializes as JSON, triggers download via Blob URL. |
+| `apps/web/src/components/canvas/WorkflowCanvas.tsx` | Added "Save as Template" button in canvas top bar. Renders `SaveAsTemplateDialog` with `getWorkflowGraph` and pre-filled name from workflow meta. |
+| `apps/web/src/stores/workflowStore.ts` | Added `saveAsTemplateOpen` state and `toggleSaveAsTemplate()` action. |
+| `apps/web/src/components/canvas/index.ts` | Added `SaveAsTemplateDialog` export. |
+
+### How it works
+
+1. User clicks "Save as Template" in the canvas top bar → dialog opens.
+2. Name is pre-filled from workflow meta. User can add description, category, and comma-separated tags.
+3. On "Export as JSON":
+   - Reads current graph via `getWorkflowGraph()`.
+   - Validates non-empty name and non-empty graph.
+   - Derives `requiredNodeTypes` from `Set(graph.nodes.map(n => n.type))`.
+   - Derives `requiredProviders` from nodes with `data.providerId`.
+   - Builds a `TemplatePack` with `source: "user"`, unique timestamped pack ID.
+   - Serializes to JSON, creates Blob URL, triggers download with `<a>.click()`.
+4. Dialog closes on success; shows inline error on failure.
+
+### What is NOT included
+
+- ~~No persistence to localStorage or DB (download-only)~~ **DONE in Session 17**
+- ~~No auto-registration of saved template into gallery~~ **DONE in Session 17**
+- No template editing (re-export from scratch)
+- No thumbnail generation
+
+## 4o. What Was Added in Session 17 — Template Pack Persistence
+
+### Problem
+
+Imported packs and user-created templates were lost on page reload. The `TemplatePackLoader` is an in-memory singleton — its contents don't survive navigation or refresh.
+
+### Solution
+
+A `templatePackStorage.ts` utility that persists packs to `localStorage` under `aiStudio.templatePacks` and rehydrates them on gallery mount.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `apps/web/src/lib/templatePackStorage.ts` | `rehydratePersistedPacks()` — reads localStorage, validates each pack via `parseTemplatePack()`, registers valid non-builtin packs into `templatePackLoader`. `persistPack(pack)` — adds/replaces a pack in localStorage. `removePersistedPack(packId)` — removes a pack by ID. |
+
+### Modified files
+
+| File | Change |
+|------|--------|
+| `apps/web/src/components/canvas/TemplatePicker.tsx` | `ensurePacksLoaded()` now calls `rehydratePersistedPacks()` after built-in registration. Import handler calls `persistPack(pack)` after successful import. |
+| `apps/web/src/components/canvas/SaveAsTemplateDialog.tsx` | `handleExport()` now calls `templatePackLoader.register(pack)` + `persistPack(pack)` before download, so the saved template appears in the gallery immediately and survives reload. |
+
+### How it works
+
+1. **Storage format**: `aiStudio.templatePacks` localStorage key contains a JSON array of raw `TemplatePack` objects (same shape as `parseTemplatePack()` input).
+2. **Rehydration** (on gallery mount): `ensurePacksLoaded()` → `registerBuiltInPacks()` → `rehydratePersistedPacks()`. Each stored pack is validated via `parseTemplatePack()`. Built-in packs and duplicates are skipped. Invalid packs are silently dropped.
+3. **Persist on import**: After `templatePackLoader.register(pack)`, `persistPack(pack)` adds/replaces the pack in localStorage.
+4. **Persist on save-as**: After building the `TemplatePack`, it's registered in the loader AND persisted to localStorage before the download triggers.
+5. **Duplicate handling**: `persistPack()` replaces by pack ID. `rehydratePersistedPacks()` skips packs already registered.
+6. **Error resilience**: All localStorage operations are wrapped in try/catch. SSR-safe (`typeof window` guard). Corrupt data is silently ignored.
+
+### What is NOT included
+
+- No server-side persistence
+- No pack deletion UI (removePersistedPack exists but has no button)
+- No storage quota management
+- No migration/versioning of storage format
+
+---
+
 ## 5. What Still Remains to Be Migrated
 
 ### Provider adapter unification

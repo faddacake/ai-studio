@@ -120,21 +120,31 @@ Required node types: `clip-scoring`, `ranking`, `social-format`, `export-bundle`
 - Hosted marketplace / pack discovery
 - Pack versioning / upgrade logic
 - Pack dependency resolution (pack A depends on pack B)
-- User-created pack authoring UI
+- User-created pack authoring UI (save current graph as template)
 - Pack signing or verification
 - Premium pack gating (type exists but no enforcement)
+- Imported pack persistence (localStorage / DB — lost on reload)
+- Pack removal UI (unregister from gallery)
 - Live preview rendering
 - Template thumbnail images
+- Drag-and-drop import
+- URL-based remote import
 
 ---
 
 ## 6. Future Integration Points
 
-### Template picker UI
-A palette/modal that shows `templatePackLoader.getAllTemplates()` grouped by category, with availability badges from `checkAvailability()`. On selection, loads the `WorkflowGraph` into the Zustand workflow store.
+### Template picker UI — DONE (Session 13+14)
+A "Template Gallery" modal showing `templatePackLoader.getAllTemplates()` grouped by category, with tab navigation (All/Built-in/Imported/My Templates/Packs), color-coded source badges, pack badges, availability dots, tag pills, and text search. On selection, loads the `WorkflowGraph` into the Zustand workflow store.
 
-### Import from file
-A file picker that reads a JSON file, calls `parseTemplatePack()`, and registers it with `templatePackLoader`. Source = "imported".
+### Import from file — DONE (Session 15)
+"Import Pack" button in the Template Gallery header opens a native file picker for `.json` files. Reads the file client-side with `FileReader`, validates via `parseTemplatePack()`, forces `source = "imported"`, and registers with `templatePackLoader`. Shows error/success banners. Auto-switches to "Imported" tab. Persisted to localStorage (Session 17).
 
-### User-created templates
-Save the current workflow graph as a template, wrap it in a `TemplatePack` with source = "user", and persist to the database or local storage.
+### User-created templates — DONE (Session 16)
+"Save as Template" button in the canvas top bar opens a dialog where the user provides name, description, category, and tags. The current `WorkflowGraph` is read from the Zustand store, wrapped in a `TemplatePack` with `source = "user"`, auto-derived `requiredNodeTypes` and `requiredProviders`, and downloaded as a JSON file. Also auto-registered into gallery and persisted to localStorage (Session 17).
+
+### Pack persistence — DONE (Session 17)
+`templatePackStorage.ts` in `apps/web/src/lib/` provides `rehydratePersistedPacks()`, `persistPack()`, and `removePersistedPack()`. Packs are stored under `aiStudio.templatePacks` in localStorage as a JSON array. On gallery mount, persisted packs are validated via `parseTemplatePack()` and registered into `templatePackLoader`. Built-in packs are skipped (always loaded from static imports). Invalid packs are silently dropped.
+
+### Pack management UI (future)
+Add ability to delete persisted packs from the gallery (calls `removePersistedPack()` + `templatePackLoader.unregister()`). No server persistence yet.

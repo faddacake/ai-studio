@@ -86,6 +86,7 @@ interface WorkflowState {
   inspectorOpen: boolean;
   debuggerOpen: boolean;
   templatePickerOpen: boolean;
+  saveAsTemplateOpen: boolean;
   debugSnapshot: RunDebugSnapshot | null;
   currentRunId: string | null;
   dirty: boolean;
@@ -106,6 +107,7 @@ interface WorkflowState {
   toggleInspector: () => void;
   toggleDebugger: () => void;
   toggleTemplatePicker: () => void;
+  toggleSaveAsTemplate: () => void;
   setDebugSnapshot: (snapshot: RunDebugSnapshot | null) => void;
   setCurrentRunId: (runId: string | null) => void;
   saveGraph: () => Promise<void>;
@@ -123,6 +125,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   inspectorOpen: false,
   debuggerOpen: false,
   templatePickerOpen: false,
+  saveAsTemplateOpen: false,
   debugSnapshot: null,
   currentRunId: null,
   dirty: false,
@@ -202,6 +205,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
   toggleDebugger: () => set((s) => ({ debuggerOpen: !s.debuggerOpen })),
   toggleTemplatePicker: () => set((s) => ({ templatePickerOpen: !s.templatePickerOpen })),
+  toggleSaveAsTemplate: () => set((s) => ({ saveAsTemplateOpen: !s.saveAsTemplateOpen })),
   setDebugSnapshot: (snapshot) => set({ debugSnapshot: snapshot }),
   setCurrentRunId: (runId) => set({ currentRunId: runId }),
 

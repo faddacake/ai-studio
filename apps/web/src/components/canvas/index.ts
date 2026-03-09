@@ -5,3 +5,5 @@ export { CustomNode } from "./CustomNode";
 export { WorkflowCanvas } from "./WorkflowCanvas";
 export { TemplatePicker } from "./TemplatePicker";
 export type { TemplatePickerProps } from "./TemplatePicker";
+export { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
+export type { SaveAsTemplateDialogProps } from "./SaveAsTemplateDialog";

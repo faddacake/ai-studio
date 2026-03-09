@@ -9,12 +9,14 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test 'src/**/*.test.ts' 'src/*.test.ts'",
     "lint": "echo 'no lint configured yet'"
   },
   "dependencies": {
     "@aistudio/shared": "workspace:*"
   },
   "devDependencies": {
+    "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }
 }

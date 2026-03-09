@@ -74,3 +74,51 @@ export {
 // ── Model Bridge ──
 export { modelToNodeDefinition, modelsToNodeDefinitions } from "./modelBridge.js";
 export type { ModelOptionLike } from "./modelBridge.js";
+
+// ── Candidate Contract ──
+export type {
+  CandidateItem,
+  CandidateScore,
+  CandidateCollection,
+  CandidateMetadata,
+  CandidateSelection,
+  CandidateType,
+  CollectionType,
+} from "./candidateTypes.js";
+
+export {
+  attachScore,
+  attachScores,
+  getScore,
+  getBestScore,
+  sortByMetric,
+  rankByMetric,
+  takeTopK,
+  filterByThreshold,
+  selectBest,
+  toCollection,
+  toSelection,
+  fromRawValues,
+  extractValues,
+  isCandidateCollection,
+  ensureCollection,
+  attachMetadata,
+  attachCollectionMetadata,
+} from "./candidateHelpers.js";
+
+// ── Template Packs ──
+export {
+  TemplatePackManifestSchema,
+  TemplatePackLoader,
+  templatePackLoader,
+  parseTemplatePack,
+} from "./templatePack.js";
+export type {
+  TemplatePackManifest,
+  TemplatePack,
+  TemplateEntry,
+  TemplatePackSource,
+  PackAvailability,
+} from "./templatePack.js";
+
+export { registerBuiltInPacks } from "./builtinPacks.js";

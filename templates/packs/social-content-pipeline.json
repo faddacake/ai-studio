@@ -1,0 +1,266 @@
+{
+  "manifest": {
+    "id": "social-content-pipeline",
+    "name": "Social Content Pipeline",
+    "version": "1.0.0",
+    "author": "AI Studio",
+    "description": "Generate images, score with CLIP, rank the best, format for social platforms, and export as a bundle.",
+    "category": "content-creation",
+    "tags": ["social", "image", "scoring", "export", "pipeline"],
+    "templates": ["full-pipeline", "score-and-rank"],
+    "previews": {
+      "full-pipeline": "Full 6-node pipeline: Prompt → ImageGen → ClipScoring → Ranking → SocialFormat → ExportBundle",
+      "score-and-rank": "Lightweight 3-node scoring pipeline: ClipScoring → Ranking → ExportBundle"
+    },
+    "requiredNodeTypes": ["clip-scoring", "ranking", "social-format", "export-bundle"],
+    "source": "builtin"
+  },
+  "templates": {
+    "full-pipeline": {
+      "version": 1,
+      "nodes": [
+        {
+          "id": "00000000-0000-4000-a000-000000000001",
+          "type": "prompt-template",
+          "position": { "x": 0, "y": 200 },
+          "data": {
+            "label": "Prompt",
+            "params": { "__nodeType": "prompt-template" },
+            "retryCount": 0,
+            "timeoutMs": 30000
+          },
+          "inputs": [],
+          "outputs": [
+            { "id": "text_out", "name": "Text", "type": "text", "direction": "output" }
+          ]
+        },
+        {
+          "id": "00000000-0000-4000-a000-000000000002",
+          "type": "image-generation",
+          "position": { "x": 250, "y": 200 },
+          "data": {
+            "label": "Image Generation",
+            "params": { "__nodeType": "image-generation" },
+            "retryCount": 1,
+            "timeoutMs": 300000
+          },
+          "inputs": [
+            { "id": "prompt_in", "name": "Prompt", "type": "text", "direction": "input" }
+          ],
+          "outputs": [
+            { "id": "images_out", "name": "Images", "type": "image", "direction": "output" }
+          ]
+        },
+        {
+          "id": "00000000-0000-4000-a000-000000000003",
+          "type": "clip-scoring",
+          "position": { "x": 500, "y": 200 },
+          "data": {
+            "label": "CLIP Scoring",
+            "params": { "__nodeType": "clip-scoring", "model": "open_clip", "normalizeScores": true },
+            "retryCount": 0,
+            "timeoutMs": 60000
+          },
+          "inputs": [
+            { "id": "images_in", "name": "Images", "type": "image", "direction": "input", "isArray": true },
+            { "id": "prompt_in", "name": "Prompt", "type": "text", "direction": "input" }
+          ],
+          "outputs": [
+            { "id": "scores_out", "name": "Scores", "type": "json", "direction": "output" },
+            { "id": "scored_images_out", "name": "Scored Images", "type": "json", "direction": "output" }
+          ]
+        },
+        {
+          "id": "00000000-0000-4000-a000-000000000004",
+          "type": "ranking",
+          "position": { "x": 750, "y": 200 },
+          "data": {
+            "label": "Ranking",
+            "params": { "__nodeType": "ranking", "mode": "topK", "topK": 3 },
+            "retryCount": 0,
+            "timeoutMs": 30000
+          },
+          "inputs": [
+            { "id": "items_in", "name": "Items", "type": "json", "direction": "input", "isArray": true }
+          ],
+          "outputs": [
+            { "id": "top_items_out", "name": "Top Items", "type": "json", "direction": "output" },
+            { "id": "ranked_items_out", "name": "Ranked Items", "type": "json", "direction": "output" }
+          ]
+        },
+        {
+          "id": "00000000-0000-4000-a000-000000000005",
+          "type": "social-format",
+          "position": { "x": 1000, "y": 200 },
+          "data": {
+            "label": "Social Format",
+            "params": {
+              "__nodeType": "social-format",
+              "platforms": ["instagram", "x", "linkedin"],
+              "tone": "professional",
+              "includeHashtags": true,
+              "includeCTA": true
+            },
+            "retryCount": 0,
+            "timeoutMs": 30000
+          },
+          "inputs": [
+            { "id": "candidates_in", "name": "Candidates", "type": "json", "direction": "input" }
+          ],
+          "outputs": [
+            { "id": "formatted_out", "name": "Formatted", "type": "json", "direction": "output" }
+          ]
+        },
+        {
+          "id": "00000000-0000-4000-a000-000000000006",
+          "type": "export-bundle",
+          "position": { "x": 1250, "y": 200 },
+          "data": {
+            "label": "Export Bundle",
+            "params": {
+              "__nodeType": "export-bundle",
+              "format": "manifest-only",
+              "includeImages": true,
+              "includeMetadata": true,
+              "includeSocialText": true,
+              "includeScores": true
+            },
+            "retryCount": 0,
+            "timeoutMs": 30000
+          },
+          "inputs": [
+            { "id": "candidates_in", "name": "Candidates", "type": "json", "direction": "input" }
+          ],
+          "outputs": [
+            { "id": "bundle_out", "name": "Bundle", "type": "json", "direction": "output" },
+            { "id": "candidates_out", "name": "Candidates", "type": "json", "direction": "output" }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "00000000-0000-4000-b000-000000000001",
+          "source": "00000000-0000-4000-a000-000000000001",
+          "sourceHandle": "text_out",
+          "target": "00000000-0000-4000-a000-000000000002",
+          "targetHandle": "prompt_in"
+        },
+        {
+          "id": "00000000-0000-4000-b000-000000000002",
+          "source": "00000000-0000-4000-a000-000000000001",
+          "sourceHandle": "text_out",
+          "target": "00000000-0000-4000-a000-000000000003",
+          "targetHandle": "prompt_in"
+        },
+        {
+          "id": "00000000-0000-4000-b000-000000000003",
+          "source": "00000000-0000-4000-a000-000000000002",
+          "sourceHandle": "images_out",
+          "target": "00000000-0000-4000-a000-000000000003",
+          "targetHandle": "images_in"
+        },
+        {
+          "id": "00000000-0000-4000-b000-000000000004",
+          "source": "00000000-0000-4000-a000-000000000003",
+          "sourceHandle": "scored_images_out",
+          "target": "00000000-0000-4000-a000-000000000004",
+          "targetHandle": "items_in"
+        },
+        {
+          "id": "00000000-0000-4000-b000-000000000005",
+          "source": "00000000-0000-4000-a000-000000000004",
+          "sourceHandle": "top_items_out",
+          "target": "00000000-0000-4000-a000-000000000005",
+          "targetHandle": "candidates_in"
+        },
+        {
+          "id": "00000000-0000-4000-b000-000000000006",
+          "source": "00000000-0000-4000-a000-000000000005",
+          "sourceHandle": "formatted_out",
+          "target": "00000000-0000-4000-a000-000000000006",
+          "targetHandle": "candidates_in"
+        }
+      ]
+    },
+    "score-and-rank": {
+      "version": 1,
+      "nodes": [
+        {
+          "id": "00000000-0000-4000-c000-000000000001",
+          "type": "clip-scoring",
+          "position": { "x": 0, "y": 200 },
+          "data": {
+            "label": "CLIP Scoring",
+            "params": { "__nodeType": "clip-scoring", "model": "open_clip", "normalizeScores": true },
+            "retryCount": 0,
+            "timeoutMs": 60000
+          },
+          "inputs": [
+            { "id": "images_in", "name": "Images", "type": "image", "direction": "input", "isArray": true }
+          ],
+          "outputs": [
+            { "id": "scores_out", "name": "Scores", "type": "json", "direction": "output" },
+            { "id": "scored_images_out", "name": "Scored Images", "type": "json", "direction": "output" }
+          ]
+        },
+        {
+          "id": "00000000-0000-4000-c000-000000000002",
+          "type": "ranking",
+          "position": { "x": 300, "y": 200 },
+          "data": {
+            "label": "Ranking",
+            "params": { "__nodeType": "ranking", "mode": "topK", "topK": 5 },
+            "retryCount": 0,
+            "timeoutMs": 30000
+          },
+          "inputs": [
+            { "id": "items_in", "name": "Items", "type": "json", "direction": "input", "isArray": true }
+          ],
+          "outputs": [
+            { "id": "top_items_out", "name": "Top Items", "type": "json", "direction": "output" },
+            { "id": "ranked_items_out", "name": "Ranked Items", "type": "json", "direction": "output" }
+          ]
+        },
+        {
+          "id": "00000000-0000-4000-c000-000000000003",
+          "type": "export-bundle",
+          "position": { "x": 600, "y": 200 },
+          "data": {
+            "label": "Export Bundle",
+            "params": {
+              "__nodeType": "export-bundle",
+              "format": "manifest-only",
+              "includeImages": true,
+              "includeScores": true
+            },
+            "retryCount": 0,
+            "timeoutMs": 30000
+          },
+          "inputs": [
+            { "id": "candidates_in", "name": "Candidates", "type": "json", "direction": "input" }
+          ],
+          "outputs": [
+            { "id": "bundle_out", "name": "Bundle", "type": "json", "direction": "output" },
+            { "id": "candidates_out", "name": "Candidates", "type": "json", "direction": "output" }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "00000000-0000-4000-d000-000000000001",
+          "source": "00000000-0000-4000-c000-000000000001",
+          "sourceHandle": "scored_images_out",
+          "target": "00000000-0000-4000-c000-000000000002",
+          "targetHandle": "items_in"
+        },
+        {
+          "id": "00000000-0000-4000-d000-000000000002",
+          "source": "00000000-0000-4000-c000-000000000002",
+          "sourceHandle": "top_items_out",
+          "target": "00000000-0000-4000-c000-000000000003",
+          "targetHandle": "candidates_in"
+        }
+      ]
+    }
+  }
+}

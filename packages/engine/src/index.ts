@@ -37,3 +37,12 @@ export type {
   NodeDebugInfo,
   BlockedReason,
 } from "./debugSnapshot.js";
+
+// ── Capability Executors ──
+export {
+  registerCapabilityExecutors,
+  executeClipScoring,
+  executeRanking,
+  executeSocialFormat,
+  executeExportBundle,
+} from "./capabilities/index.js";

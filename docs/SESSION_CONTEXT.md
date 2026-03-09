@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
-Date: 2026-03-06
-Session: React Flow Canvas Integration
+Date: 2026-03-07
+Session: Candidate Data Contract
 
 ---
 
@@ -53,28 +53,92 @@ Completed (Session 5 — uncommitted):
 - [x] Added @xyflow/react and zustand dependencies
 - [x] Updated documentation
 
+Completed (Session 6 — uncommitted):
+- [x] SSE run updates: RunCoordinator → RunDebuggerPanel via Server-Sent Events
+- [x] useRunEvents hook: EventSource consumer with auto-cleanup
+- [x] Singleton RunCoordinator accessor for SSE route
+- [x] workflowStore: added currentRunId state + setter
+
+Completed (Session 7 — uncommitted):
+- [x] Upgraded ClipScoring node definition: array image input, model/normalize/topK params, uiSchema
+- [x] Upgraded Ranking node definition: items/scores inputs, topK/threshold/sort modes, uiSchema
+- [x] Created CLIP scoring capability executor with mock scoring (packages/engine/src/capabilities/clipScoring.ts)
+- [x] Created Ranking capability executor with 3 selection modes (packages/engine/src/capabilities/ranking.ts)
+- [x] Created registerCapabilityExecutors() for worker startup registration
+- [x] Updated engine exports
+- [x] Updated architecture and session docs
+
+Completed (Session 8 — uncommitted):
+- [x] Created candidate data contract types (CandidateItem, CandidateScore, CandidateCollection, CandidateSelection)
+- [x] Created candidate helper functions (attachScore, sortByMetric, takeTopK, filterByThreshold, ensureCollection, etc.)
+- [x] Updated ClipScoring executor to use candidate contract (ensureCollection input, CandidateCollection output)
+- [x] Updated Ranking executor to use candidate contract (accepts scored collections, outputs CandidateSelection)
+- [x] Refined node definitions for candidate-aware port descriptions
+- [x] Made Ranking scores_in port optional (not needed when items already have scores from upstream)
+- [x] Exported candidate types and helpers from packages/shared
+- [x] Updated architecture and session docs
+
+Completed (Session 9 — uncommitted):
+- [x] Created SocialFormat capability executor with per-candidate, per-platform content generation
+- [x] Created ExportBundle capability executor with structured manifest builder
+- [x] Added attachMetadata() and attachCollectionMetadata() candidate helpers
+- [x] Upgraded socialFormatNode definition with candidate-aware ports, parameterSchema, uiSchema
+- [x] Upgraded exportBundleNode definition with candidate-aware ports, parameterSchema, uiSchema
+- [x] Registered socialFormat and exportBundle executors in capabilities/index.ts
+- [x] Added executeSocialFormat and executeExportBundle to engine barrel exports
+- [x] Full pipeline now functional: Prompt → ImageGen → ClipScoring → Ranking → SocialFormat → ExportBundle
+- [x] Updated architecture and session docs
+
+Completed (Session 10 — uncommitted):
+- [x] Created end-to-end pipeline integration test (9 test cases, all passing)
+- [x] Verified full pipeline: Prompt → ImageGen → ClipScoring → Ranking → SocialFormat → ExportBundle
+- [x] Verified stage-by-stage output shape and cross-stage metadata integrity
+- [x] Added test script and tsx dev dependency to engine package.json
+- [x] Updated architecture and session docs
+
+Completed (Session 11 — uncommitted):
+- [x] Created graph-driven orchestration integration test (9 test cases, all passing)
+- [x] Verified WorkflowGraph → buildExecutionGraph() → RunCoordinator → NodeExecutor pipeline
+- [x] Verified topological ordering, tier computation, dependency-gated dispatch
+- [x] Verified event stream (run:started, node:queued, node:completed, run:completed)
+- [x] Verified no duplicate execution, correct input resolution across edges
+- [x] Verified final export output preserves upstream scores, ranks, social metadata
+- [x] Fixed engine test script glob to match test files at all directory levels
+- [x] Updated architecture and session docs
+
+Completed (Session 12 — uncommitted):
+- [x] Created template pack types with Zod validation (TemplatePackManifest, TemplatePack, TemplateEntry)
+- [x] Created TemplatePackLoader class with register/lookup/filter/availability checking
+- [x] Created parseTemplatePack() for JSON import validation
+- [x] Created registerBuiltInPacks() for startup registration
+- [x] Created built-in social-content-pipeline pack with 2 templates (full-pipeline, score-and-rank)
+- [x] Added 12 tests covering loader, parser, availability, error handling
+- [x] Added test script and tsx dev dependency to shared package.json
+- [x] Created TEMPLATE_PACKS_PLAN.md documentation
+- [x] Updated architecture and session docs
+
 ---
 
 ## 2. Current Branch / Environment
 
-Git Branch: master
+Git Branch: milestone-node-platform
 Environment: Local / macOS
 
 ---
 
 ## 3. Active Files
 
-Files Created (Session 5):
-- apps/web/src/stores/workflowStore.ts
-- apps/web/src/components/canvas/CustomNode.tsx
-- apps/web/src/components/canvas/WorkflowCanvas.tsx
+Files Created (Session 12):
+- packages/shared/src/templatePack.ts
+- packages/shared/src/builtinPacks.ts
+- packages/shared/src/templatePack.test.ts
+- templates/packs/social-content-pipeline.json
+- docs/TEMPLATE_PACKS_PLAN.md
 
-Files Modified (Session 5):
-- apps/web/src/components/canvas/index.ts (added CustomNode, WorkflowCanvas exports)
-- apps/web/src/app/(app)/workflows/[id]/page.tsx (replaced placeholder with canvas editor)
-- apps/web/package.json (added @xyflow/react, zustand)
-- pnpm-lock.yaml (updated)
-- docs/ARCHITECTURE_NODE_PLATFORM_PLAN.md (added Session 5, updated steps)
+Files Modified (Session 12):
+- packages/shared/src/index.ts (added template pack exports)
+- packages/shared/package.json (added test script and tsx dev dependency)
+- docs/ARCHITECTURE_NODE_PLATFORM_PLAN.md (added Session 12 / section 4j)
 - docs/SESSION_CONTEXT.md (this file)
 
 ---
@@ -101,11 +165,12 @@ Files Modified (Session 5):
 
 ## 6. Next Actions (When I Return)
 
-1. SSE integration — wire RunCoordinator events to RunDebuggerPanel for live updates
-2. Local executors — sharp-based resize/crop/format-convert implementations
-3. Capability executors — wrap qualityScoring and socialFormatter as node executors
-4. Deprecate dual ProviderAdapter interfaces
-5. Connection validation — use PORT_COMPATIBILITY to validate edge connections
+1. Template picker UI — modal/palette showing templates from templatePackLoader, load into workflow store
+2. Template import from file — file picker → parseTemplatePack() → register imported pack
+3. Error handling E2E test — node failure → downstream cancellation → partial_failure run status
+4. Local executors — sharp-based resize/crop/format-convert implementations
+5. Best-of-N generation node — generate N variants, auto-score, select best using candidate contract
+6. Connection validation — use PORT_COMPATIBILITY to validate edge connections
 
 ---
 

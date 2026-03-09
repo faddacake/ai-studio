@@ -86,6 +86,7 @@ interface WorkflowState {
   inspectorOpen: boolean;
   debuggerOpen: boolean;
   debugSnapshot: RunDebugSnapshot | null;
+  currentRunId: string | null;
   dirty: boolean;
   saving: boolean;
 
@@ -104,6 +105,7 @@ interface WorkflowState {
   toggleInspector: () => void;
   toggleDebugger: () => void;
   setDebugSnapshot: (snapshot: RunDebugSnapshot | null) => void;
+  setCurrentRunId: (runId: string | null) => void;
   saveGraph: () => Promise<void>;
   getWorkflowGraph: () => WorkflowGraph;
 }
@@ -119,6 +121,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   inspectorOpen: false,
   debuggerOpen: false,
   debugSnapshot: null,
+  currentRunId: null,
   dirty: false,
   saving: false,
 
@@ -196,6 +199,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
   toggleDebugger: () => set((s) => ({ debuggerOpen: !s.debuggerOpen })),
   setDebugSnapshot: (snapshot) => set({ debugSnapshot: snapshot }),
+  setCurrentRunId: (runId) => set({ currentRunId: runId }),
 
   getWorkflowGraph: () => {
     const { nodes, edges } = get();

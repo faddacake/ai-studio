@@ -56,6 +56,7 @@ export {
   videoGenerationNode,
   createProviderNodeDefinition,
   // Capability nodes
+  bestOfNNode,
   clipScoringNode,
   socialFormatNode,
   exportBundleNode,
@@ -105,6 +106,10 @@ export {
   attachMetadata,
   attachCollectionMetadata,
 } from "./candidateHelpers.js";
+
+// ── Artifact Reference ──
+export { isArtifactRef } from "./artifactRef.js";
+export type { ArtifactRef } from "./artifactRef.js";
 
 // ── Template Packs ──
 export {

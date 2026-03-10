@@ -41,8 +41,28 @@ export type {
 // ── Capability Executors ──
 export {
   registerCapabilityExecutors,
+  executeBestOfN,
   executeClipScoring,
   executeRanking,
   executeSocialFormat,
   executeExportBundle,
+  MockGeneratorAdapter,
+  FalGeneratorAdapter,
+  createGenerator,
 } from "./capabilities/index.js";
+export type {
+  GeneratorAdapter,
+  GeneratorAdapterOptions,
+  GenerateOpts,
+  GeneratedImage,
+} from "./capabilities/index.js";
+
+// ── Local Executors ──
+export {
+  registerLocalExecutors,
+  executeResize,
+  executeCrop,
+  executeFormatConvert,
+  bufferFromInput,
+  writeArtifact,
+} from "./local/index.js";

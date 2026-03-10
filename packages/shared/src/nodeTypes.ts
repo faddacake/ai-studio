@@ -15,6 +15,7 @@ export enum NodeType {
   PromptTemplate = "prompt-template",
 
   // Capabilities
+  BestOfN = "best-of-n",
   ClipScoring = "clip-scoring",
   SocialFormat = "social-format",
   ExportBundle = "export-bundle",

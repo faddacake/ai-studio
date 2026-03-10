@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
-Date: 2026-03-09
-Session: Error Handling E2E Test
+Date: 2026-03-10
+Session: Artifact/Output Normalization and Persistence Contract
 
 ---
 
@@ -166,6 +166,33 @@ Completed (Session 18 — uncommitted):
 - [x] Fixed reentrancy bug in RunCoordinator.dispatchReadyNodes() — skip nodes already past pending
 - [x] Updated architecture and session docs
 
+Completed (Session 19 — uncommitted):
+- [x] Created budget-enforcement E2E orchestration test (11 test cases, all passing)
+- [x] Verified run begins normally with budgetCap + budgetMode persisted on RunState
+- [x] Verified nodes execute and accumulate cost before cap is reached
+- [x] Verified once totalCost >= budgetCap, run transitions to budget_exceeded (>= boundary exercised)
+- [x] Verified pending/ready nodes (pricey + blocked) are cancelled and never dispatched
+- [x] Verified completed work (source + worker) is preserved with correct outputs and completedAt
+- [x] Verified event stream: run:budget_exceeded with correct totalCost + budgetCap payload
+- [x] Verified no run:completed / run:failed / run:partial_failure / run:cancelled emitted
+- [x] Verified node state summary: 2 completed, 2 cancelled, 0 non-terminal
+- [x] All 38 engine tests pass (4 suites)
+
+Completed (Session 20 — uncommitted):
+- [x] Added sharp dependency to packages/engine (pnpm add sharp --filter @aistudio/engine)
+- [x] Created packages/engine/src/local/resize.ts — executeResize() using sharp().resize()
+- [x] Created packages/engine/src/local/crop.ts — executeCrop() using sharp().extract(); maps x/y params → left/top (sharp convention)
+- [x] Created packages/engine/src/local/formatConvert.ts — executeFormatConvert() supporting jpeg/png/webp with quality param
+- [x] Created packages/engine/src/local/index.ts — barrel + registerLocalExecutors() keyed by "resize", "crop", "format-convert"
+- [x] Updated packages/engine/src/index.ts — exports registerLocalExecutors, executeResize, executeCrop, executeFormatConvert
+- [x] Created packages/engine/src/imageTransforms.integration.test.ts — 16 test cases, all passing
+  - resize: exact dims, non-square, metadata, invalid-fit fallback, cost=0
+  - crop: exact dims, region metadata (x/y→left/top mapping), full-image crop, cost=0
+  - format-convert: PNG→JPEG, PNG→WebP, PNG→PNG, default format, dim preservation, cost=0
+  - chaining: resize→crop→format-convert pipeline fully in-memory (no disk I/O)
+- [x] All 54 engine tests pass (9 suites, 0 failures)
+- Architectural note: image_in/image_out port values are plain Buffer — compatible with Node.js Buffer serialization; sharp metadata returned in result.metadata field
+
 ---
 
 ## 2. Current Branch / Environment
@@ -183,6 +210,105 @@ Files Created (Session 18):
 Files Modified (Session 18):
 - packages/engine/src/runCoordinator.ts (reentrancy guard in dispatchReadyNodes)
 - docs/ARCHITECTURE_NODE_PLATFORM_PLAN.md (added Session 18 / section 4p)
+- docs/SESSION_CONTEXT.md (this file)
+
+Files Created (Session 19):
+- packages/engine/src/budget-enforcement.integration.test.ts
+
+Files Modified (Session 19):
+- docs/SESSION_CONTEXT.md (this file)
+
+Files Created (Session 20):
+- packages/engine/src/local/resize.ts
+- packages/engine/src/local/crop.ts
+- packages/engine/src/local/formatConvert.ts
+- packages/engine/src/local/index.ts
+- packages/engine/src/imageTransforms.integration.test.ts
+
+Files Modified (Session 20):
+- packages/engine/src/index.ts (added local executor exports)
+- packages/engine/package.json (added sharp dependency)
+- docs/SESSION_CONTEXT.md (this file)
+
+Files Created (Session 21):
+- packages/shared/src/artifactRef.ts (ArtifactRef type + isArtifactRef guard)
+- packages/engine/src/local/imageUtils.ts (bufferFromInput + writeArtifact)
+- packages/engine/src/artifactSerialization.integration.test.ts (14 new tests)
+
+Files Modified (Session 21):
+- packages/shared/src/index.ts (export ArtifactRef, isArtifactRef)
+- packages/engine/src/local/resize.ts (writes to outputDir, returns ArtifactRef)
+- packages/engine/src/local/crop.ts (writes to outputDir, returns ArtifactRef)
+- packages/engine/src/local/formatConvert.ts (writes to outputDir, returns ArtifactRef)
+- packages/engine/src/local/index.ts (export bufferFromInput, writeArtifact)
+- packages/engine/src/index.ts (export bufferFromInput, writeArtifact)
+- packages/engine/src/imageTransforms.integration.test.ts (updated to assert ArtifactRef contract)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 22 — Best-of-N generation node + generator adapter):
+- [x] Created packages/shared/src/nodeDefinitions/capabilities.ts: added bestOfNNode definition (prompt_in, selection_out, all_candidates_out, n/k/model params)
+- [x] Added NodeType.BestOfN = "best-of-n" to packages/shared/src/nodeTypes.ts
+- [x] Created packages/engine/src/capabilities/bestOfN.ts: executeBestOfN() composing mock generation + executeClipScoring + executeRanking
+- [x] Registered executeBestOfN in capabilities/index.ts as "best-of-n"
+- [x] Created packages/engine/src/bestOfN.integration.test.ts (19 tests, 7 suites)
+- [x] All 87 engine tests pass
+
+Completed (Session 23 — GeneratorAdapter abstraction + Fal.ai integration):
+- [x] Created packages/engine/src/capabilities/generator.ts:
+  - GeneratorAdapter interface with kind + generate(opts)
+  - MockGeneratorAdapter: deterministic solid-color PNGs via sharp (seed-based colors)
+  - FalGeneratorAdapter: calls fal-ai/flux/schnell via plain fetch (no SDK); respects seed param; downloads image Buffer from CDN URL
+  - createGenerator() factory: FAL_API_KEY env var → FalGeneratorAdapter; else → MockGeneratorAdapter
+- [x] Refactored packages/engine/src/capabilities/bestOfN.ts to use GeneratorAdapter
+  - resolveGenerator(): checks context.params.__generator (injection) → createGenerator factory
+  - Per-candidate seed: (promptSeed * 1000 + i) & 0x7FFFFFFF — deterministic and provider-friendly
+  - metadata.generatorKind surfaced; metadata.mock derived from generator.kind === "mock"
+- [x] Created packages/engine/src/generator.integration.test.ts (16 new tests):
+  - MockGeneratorAdapter: returns PNG Buffer, correct dimensions, deterministic, different seeds differ, kind=mock
+  - FalGeneratorAdapter: kind=fal, accepts custom modelId
+  - createGenerator factory: returns mock when no key, returns fal when key present or env var set
+  - executeBestOfN injection: kind surfaces in metadata, ArtifactRefs produced, non-mock kind detected, invalid injection falls back gracefully
+- [x] All 103 engine tests pass (27 suites, 0 failures)
+
+Files Created (Session 23):
+- packages/engine/src/capabilities/generator.ts
+- packages/engine/src/generator.integration.test.ts
+
+Files Modified (Session 23):
+- packages/engine/src/capabilities/bestOfN.ts (uses GeneratorAdapter, removes inlined mock logic)
+- packages/engine/src/capabilities/index.ts (exports generator types and classes)
+- packages/engine/src/index.ts (re-exports generator types and classes)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 24 — Generator-backed workflow node integration):
+- [x] Added `provider` param (enum: mock | fal) to bestOfNNode definition
+- [x] Added `seed` param (number, optional) to bestOfNNode definition
+- [x] Expanded `model` enum: added fal-ai/flux/schnell and fal-ai/flux-pro/v1.1 options
+- [x] Updated bestOfNNode uiSchema groups: Generation now includes provider, model, seed fields
+- [x] Updated executeBestOfN to honor params.seed as explicit base seed (overrides prompt-derived seed)
+- [x] Rebuilt @aistudio/shared after definition changes
+- [x] Created packages/engine/src/bestOfNWorkflow.integration.test.ts (21 new tests, 5 suites):
+  - Suite 1: "best-of-n node through RunCoordinator + NodeExecutor dispatch"
+    - run completes, node state completed, N ArtifactRefs generated, K selected, fully serializable, attempt/timestamps set
+  - Suite 2: "best-of-n node receives prompt from upstream node via coordinator wiring"
+    - DAG order enforced, prompt wired through graph, run completes
+  - Suite 3: "best-of-n provider routing via workflow params"
+    - params.provider=mock works without API key
+    - Injected FalGeneratorAdapter stub called exactly N times
+    - FAL_API_KEY env var activates FalGeneratorAdapter (factory-level, no network)
+  - Suite 4: "explicit seed param produces reproducible outputs"
+    - Same seed → identical score orderings across parallel runs
+    - Different seeds → distinct artifact filenames
+  - Suite 5: "full pipeline: best-of-n → social-format → export-bundle via coordinator"
+    - Run completes, topological order enforced, K ArtifactRef assets in manifest, JSON-safe, social entries correct, coordinator wiring verified
+- [x] All 124 engine tests pass (32 suites, 0 failures)
+
+Files Created (Session 24):
+- packages/engine/src/bestOfNWorkflow.integration.test.ts
+
+Files Modified (Session 24):
+- packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
+- packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
 - docs/SESSION_CONTEXT.md (this file)
 
 ---
@@ -203,17 +329,23 @@ Files Modified (Session 18):
 
 ## 5. Open Questions / Blockers
 
-- Pre-existing typecheck error: missing `apps/web/src/app/api/workflows/[id]/runs/route.ts` (not caused by our changes)
+- Pre-existing TS errors in engine integration test files (PortType string literals) — not caused by our changes
+- ArtifactRef outputs (PNG file paths) are surfaced as JSON in RunDebuggerPanel; result rendering polish is the next milestone
 
 ---
 
 ## 6. Next Actions (When I Return)
 
-1. Budget enforcement E2E test — budget cap → budget_exceeded status → pending node cancellation
-2. Local executors — sharp-based resize/crop/format-convert implementations
-4. Best-of-N generation node — generate N variants, auto-score, select best using candidate contract
-5. Connection validation — use PORT_COMPATIBILITY to validate edge connections
-6. Confirmation dialog before replacing current graph when loading a template
+1. [DONE] Budget enforcement E2E test — budget cap → budget_exceeded status → pending node cancellation
+2. [DONE] Local executors — sharp-based resize/crop/format-convert implementations
+3. [DONE] Artifact/output normalization — ArtifactRef contract; local executors write to outputDir, return serializable refs
+4. [DONE] Best-of-N generation node — generate N variants, auto-score, select best using candidate contract + ArtifactRef
+5. [DONE] GeneratorAdapter abstraction — MockGeneratorAdapter + FalGeneratorAdapter (fal-ai/flux/schnell via fetch); FAL_API_KEY activation; adapter injection for testing
+6. [DONE] Generator-backed workflow node integration — bestOfNNode wired through RunCoordinator + NodeExecutor dispatch; provider/seed params added to definition; 21 new workflow-level tests
+7. [DONE] Prompt-page / app wiring — Generate page (/generate) + full workflow/run path wiring
+8. Connection validation — use PORT_COMPATIBILITY to validate edge connections at wire-up time
+9. Confirmation dialog before replacing current graph when loading a template
+10. Result rendering polish for ArtifactRef-based generated selections (next)
 
 ---
 

@@ -13,7 +13,8 @@
     "lint": "echo 'no lint configured yet'"
   },
   "dependencies": {
-    "@aistudio/shared": "workspace:*"
+    "@aistudio/shared": "workspace:*",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "tsx": "^4.19.2",

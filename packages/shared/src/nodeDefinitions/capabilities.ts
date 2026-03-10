@@ -1,6 +1,7 @@
 import type { NodeDefinition } from "../nodeDefinition.js";
 import { NodeCategory, NodeRuntimeKind } from "../nodeDefinition.js";
 import { PortType } from "../portTypes.js";
+import { NodeType } from "../nodeTypes.js";
 
 /**
  * CLIP Scoring node — evaluates image quality or prompt relevance.
@@ -374,7 +375,117 @@ export const rankingNode: NodeDefinition = {
   isAvailable: true,
 };
 
+/**
+ * Best-of-N node — generates N candidate images, scores them, and selects top K.
+ *
+ * Provides a complete generation → scoring → selection loop in one node.
+ * The generator is mock-backed today; it is designed to be replaced by a
+ * real provider (Replicate, Fal, etc.) without changing the output contract.
+ *
+ * Outputs a canonical CandidateSelection ready for SocialFormat or ExportBundle.
+ */
+export const bestOfNNode: NodeDefinition = {
+  type: NodeType.BestOfN,
+  label: "Best of N",
+  category: NodeCategory.Generation,
+  description: "Generate N image candidates, score them, and select the top K.",
+  icon: "sparkles",
+
+  inputs: [
+    {
+      id: "prompt_in",
+      label: "Prompt",
+      type: PortType.Text,
+      required: false,
+      description: "Text prompt used to generate and score candidates",
+    },
+  ],
+  outputs: [
+    {
+      id: "selection_out",
+      label: "Top Candidates",
+      type: PortType.Json,
+      description: "CandidateSelection — top K images, scored and ranked",
+    },
+    {
+      id: "all_candidates_out",
+      label: "All Candidates",
+      type: PortType.Json,
+      description: "CandidateCollection — all N images with scores and ranks",
+    },
+  ],
+
+  parameterSchema: [
+    {
+      key: "n",
+      label: "Number of Candidates (N)",
+      type: "number",
+      required: true,
+      min: 1,
+      max: 32,
+      step: 1,
+      defaultValue: 4,
+      description: "How many image candidates to generate",
+    },
+    {
+      key: "k",
+      label: "Select Top K",
+      type: "number",
+      required: true,
+      min: 1,
+      max: 16,
+      step: 1,
+      defaultValue: 2,
+      description: "How many top-scored candidates to include in the selection",
+    },
+    {
+      key: "provider",
+      label: "Provider",
+      type: "enum",
+      defaultValue: "mock",
+      options: [
+        { value: "mock", label: "Mock (deterministic, no API key)" },
+        { value: "fal",  label: "Fal.ai (requires FAL_API_KEY)" },
+      ],
+      description: "Image generation provider. 'mock' always works; 'fal' requires FAL_API_KEY.",
+    },
+    {
+      key: "model",
+      label: "Model",
+      type: "enum",
+      defaultValue: "mock-sdxl",
+      options: [
+        { value: "mock-sdxl",           label: "Mock SDXL (deterministic)" },
+        { value: "fal-ai/flux/schnell", label: "FLUX Schnell (Fal.ai, fast)" },
+        { value: "fal-ai/flux-pro/v1.1", label: "FLUX Pro v1.1 (Fal.ai, quality)" },
+      ],
+      description: "Generation model. Must be compatible with the selected provider.",
+    },
+    {
+      key: "seed",
+      label: "Seed",
+      type: "number",
+      required: false,
+      min: 0,
+      step: 1,
+      description: "Optional seed for reproducible generation. When omitted the seed is derived from the prompt.",
+    },
+  ],
+
+  uiSchema: {
+    groups: [
+      { label: "Generation", fields: ["n", "provider", "model", "seed"] },
+      { label: "Selection", fields: ["k"] },
+    ],
+  },
+
+  runtimeKind: NodeRuntimeKind.Capability,
+  tags: ["generation", "selection", "best-of-n", "image"],
+  isAvailable: true,
+};
+
 export const capabilityNodes: NodeDefinition[] = [
+  bestOfNNode,
   clipScoringNode,
   socialFormatNode,
   exportBundleNode,

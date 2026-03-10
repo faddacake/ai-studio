@@ -20,6 +20,7 @@ export {
   createProviderNodeDefinition,
 } from "./provider.js";
 export {
+  bestOfNNode,
   clipScoringNode,
   socialFormatNode,
   exportBundleNode,

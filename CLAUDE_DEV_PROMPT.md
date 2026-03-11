@@ -1,5 +1,7 @@
 # Claude Developer Prompt — AI Studio
 
+Always check docs/BUILD_STATUS.md before starting any task.
+
 Before doing any work:
 
 1. Read `CLAUDE_CONTEXT.md`

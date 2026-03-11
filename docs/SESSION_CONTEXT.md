@@ -321,6 +321,21 @@ Files Modified (Session 24):
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
 - docs/SESSION_CONTEXT.md (this file)
 
+Completed (Session 29 — Confirm before deleting connected node):
+- [x] Created ConfirmDeleteDialog: overlay + card matching existing dialog pattern; shows node label + edge count; Cancel / Delete (red) buttons
+- [x] Added onBeforeDelete handler in CanvasInner: counts edges connected to nodes being deleted; if any exist, stores pending state and returns Promise<boolean> resolved by dialog actions; if none, resolves immediately
+- [x] deleteResolverRef holds the Promise resolver so dialog buttons can resolve/reject from event handlers
+- [x] Wired onBeforeDelete prop on <ReactFlow>; React Flow's own deletion path (Delete/Backspace key) is intercepted before nodes/edges are removed
+- [x] ConfirmDeleteDialog rendered at bottom of CanvasInner alongside ConfirmReplaceDialog
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 29):
+- apps/web/src/components/canvas/ConfirmDeleteDialog.tsx
+
+Files Modified (Session 29):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (onBeforeDelete, pendingDelete state, resolver ref, dialog render)
+- docs/SESSION_CONTEXT.md (this file)
+
 Completed (Session 28 — Confirm before template replace):
 - [x] Created ConfirmReplaceDialog component: overlay + card matching SaveAsTemplateDialog pattern; Cancel / Replace (red) buttons; template name in message
 - [x] Added pendingTemplate local state to CanvasInner: holds { graph, name } when dirty=true and user picks a template

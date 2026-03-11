@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -12,7 +12,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import type { Connection, Edge } from "@xyflow/react";
+import type { Connection, Edge, Node, OnBeforeDelete } from "@xyflow/react";
 import type { WorkflowNode, WorkflowGraph } from "@aistudio/shared";
 import { useWorkflowStore, fromFlowNode } from "@/stores/workflowStore";
 import { isConnectionValid } from "@/lib/connectionValidation";
@@ -21,6 +21,7 @@ import { TemplatePicker } from "./TemplatePicker";
 import { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
 import { CustomNode } from "./CustomNode";
 import { ConfirmReplaceDialog } from "./ConfirmReplaceDialog";
+import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { InspectorPanel } from "@/components/inspector";
 import { RunDebuggerPanel } from "@/components/debugger";
 
@@ -66,6 +67,46 @@ function CanvasInner() {
     graph: WorkflowGraph;
     name: string;
   } | null>(null);
+
+  // Pending node deletion — set when the node has connected edges.
+  // The resolver lets us resolve the onBeforeDelete promise from dialog actions.
+  const deleteResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    nodeLabel: string;
+    edgeCount: number;
+  } | null>(null);
+
+  const handleBeforeDelete: OnBeforeDelete<Node, Edge> = useCallback(
+    ({ nodes: deletingNodes }) => {
+      // Count edges connected to any node being deleted
+      const connectedEdges = edges.filter(
+        (e) => deletingNodes.some((n) => n.id === e.source || n.id === e.target),
+      );
+
+      if (connectedEdges.length === 0) return Promise.resolve(true);
+
+      // Hold the deletion and wait for user confirmation
+      const firstLabel = (deletingNodes[0]?.data?.label as string | undefined) ?? "Node";
+      setPendingDelete({ nodeLabel: firstLabel, edgeCount: connectedEdges.length });
+
+      return new Promise<boolean>((resolve) => {
+        deleteResolverRef.current = resolve;
+      });
+    },
+    [edges],
+  );
+
+  const handleConfirmDelete = useCallback(() => {
+    deleteResolverRef.current?.(true);
+    deleteResolverRef.current = null;
+    setPendingDelete(null);
+  }, []);
+
+  const handleCancelDelete = useCallback(() => {
+    deleteResolverRef.current?.(false);
+    deleteResolverRef.current = null;
+    setPendingDelete(null);
+  }, []);
 
   // Find the selected workflow node for the inspector
   const selectedNode: WorkflowNode | null = useMemo(() => {
@@ -175,6 +216,7 @@ function CanvasInner() {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           isValidConnection={handleIsValidConnection}
+          onBeforeDelete={handleBeforeDelete}
           onNodeClick={handleNodeClick}
           onPaneClick={handlePaneClick}
           fitView
@@ -271,6 +313,15 @@ function CanvasInner() {
         onClose={toggleSaveAsTemplate}
         getGraph={getWorkflowGraph}
         defaultName={useWorkflowStore.getState().meta?.name}
+      />
+
+      {/* Confirm delete dialog — shown when deleting a node with connected edges */}
+      <ConfirmDeleteDialog
+        open={pendingDelete !== null}
+        nodeLabel={pendingDelete?.nodeLabel}
+        edgeCount={pendingDelete?.edgeCount ?? 0}
+        onCancel={handleCancelDelete}
+        onConfirm={handleConfirmDelete}
       />
 
       {/* Confirm replace dialog — shown when dirty canvas + template selected */}

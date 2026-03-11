@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, schema } from "@aistudio/db";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import path from "node:path";
 
 import {
@@ -100,7 +100,49 @@ function makeDispatch(runId: string, outputDir: string): DispatchJob {
   return dispatch;
 }
 
-// ── Route handler ─────────────────────────────────────────────────────────────
+// ── Route handlers ────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/workflows/:id/runs — list historical run records, newest first.
+ * Excludes graphSnapshot (large) — returns summary fields only.
+ */
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: workflowId } = await params;
+  const db = getDb();
+
+  const workflow = db
+    .select({ id: schema.workflows.id })
+    .from(schema.workflows)
+    .where(eq(schema.workflows.id, workflowId))
+    .get();
+
+  if (!workflow) {
+    return NextResponse.json(
+      { error: "NOT_FOUND", message: "Workflow not found" },
+      { status: 404 },
+    );
+  }
+
+  const rows = db
+    .select({
+      id: schema.runs.id,
+      workflowId: schema.runs.workflowId,
+      status: schema.runs.status,
+      totalCost: schema.runs.totalCost,
+      startedAt: schema.runs.startedAt,
+      completedAt: schema.runs.completedAt,
+      createdAt: schema.runs.createdAt,
+    })
+    .from(schema.runs)
+    .where(eq(schema.runs.workflowId, workflowId))
+    .orderBy(desc(schema.runs.createdAt))
+    .all();
+
+  return NextResponse.json(rows);
+}
 
 export async function POST(
   _request: NextRequest,
@@ -147,11 +189,49 @@ export async function POST(
     workflow: graph,
   });
 
-  // Fire dispatch loop async — response returns immediately
+  // Fire dispatch loop async — response returns immediately.
+  // startRun() resolves only after the full DAG is processed (inline dispatch),
+  // so we persist run outcome to the DB in the .then() continuation.
   const dispatch = makeDispatch(runId, outputDir);
-  coordinator.startRun(runId, dispatch).catch((err) => {
-    console.error(`[runs/route] Run ${runId} failed:`, err);
-  });
+  coordinator.startRun(runId, dispatch)
+    .then(() => {
+      const finalRun = coordinator.getRun(runId);
+      const now = new Date().toISOString();
+      const completedAt = finalRun.completedAt
+        ? new Date(finalRun.completedAt).toISOString()
+        : now;
+
+      const db2 = getDb();
+
+      // Write run record to runs table
+      db2.insert(schema.runs)
+        .values({
+          id: runId,
+          workflowId,
+          status: finalRun.status,
+          graphSnapshot: JSON.stringify(graph),
+          graphVersion: 1,
+          totalCost: finalRun.totalCost,
+          startedAt: finalRun.startedAt ? new Date(finalRun.startedAt).toISOString() : now,
+          completedAt,
+          createdAt: new Date(finalRun.createdAt).toISOString(),
+        })
+        .run();
+
+      // Update workflow record with last run outcome
+      db2.update(schema.workflows)
+        .set({
+          lastRunId: runId,
+          lastRunStatus: finalRun.status,
+          lastRunAt: completedAt,
+          updatedAt: now,
+        })
+        .where(eq(schema.workflows.id, workflowId))
+        .run();
+    })
+    .catch((err) => {
+      console.error(`[runs/route] Run ${runId} failed:`, err);
+    });
 
   return NextResponse.json({ id: runId }, { status: 202 });
 }

@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-10
-Session: Artifact/Output Normalization and Persistence Contract
+Session: ArtifactRef Image Rendering in Generate UI
 
 ---
 
@@ -204,6 +204,16 @@ Environment: Local / macOS
 
 ## 3. Active Files
 
+Files Created (Session 25):
+- apps/web/src/app/api/workflows/[id]/runs/[runId]/outputs/route.ts
+- apps/web/src/app/api/artifacts/route.ts
+- apps/web/src/hooks/useRunOutputs.ts
+- apps/web/src/components/generate/ResultsGrid.tsx
+
+Files Modified (Session 25):
+- apps/web/src/app/(app)/generate/page.tsx (added ResultsGrid + useRunOutputs)
+- docs/SESSION_CONTEXT.md (this file)
+
 Files Created (Session 18):
 - packages/engine/src/error-handling.integration.test.ts
 
@@ -310,6 +320,15 @@ Files Modified (Session 24):
 - packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
 - docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 25 — committed as milestone-artifact-rendering):
+- [x] Added GET /api/workflows/[id]/runs/[runId]/outputs — returns completed node outputs (CandidateSelection with ArtifactRef items) from the RunCoordinator
+- [x] Added GET /api/artifacts?path=<encoded-path> — serves local artifact files; restricted to /tmp/aistudio-runs/ prefix to prevent path traversal
+- [x] Created useRunOutputs hook — fetches outputs when run completes, extracts first CandidateSelection from any node's selection_out
+- [x] Created ResultsGrid component — renders image grid from CandidateItem[], uses ArtifactRef path via /api/artifacts, shows rank/score/dimensions
+- [x] Wired Generate page: imports useRunOutputs + ResultsGrid; ResultsGrid renders above debug panel when run is complete
+- [x] Works for both mock and fal generators (both produce ArtifactRef outputs)
+- [x] TypeCheck passes: 0 errors
 
 ---
 

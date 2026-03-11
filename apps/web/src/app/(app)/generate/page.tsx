@@ -17,6 +17,8 @@
 import { useState, useCallback, lazy, Suspense } from "react";
 import { useBestOfNRunner } from "@/hooks/useBestOfNRunner";
 import { useSseSnapshot } from "@/hooks/useSseSnapshot";
+import { useRunOutputs } from "@/hooks/useRunOutputs";
+import { ResultsGrid } from "@/components/generate/ResultsGrid";
 
 const RunDebuggerPanel = lazy(() =>
   import("@/components/debugger/RunDebuggerPanel").then((m) => ({
@@ -48,6 +50,13 @@ export default function GeneratePage() {
   const { snapshot, connected, error: sseError } = useSseSnapshot(
     runner.workflowId,
     runner.runId,
+  );
+
+  const isComplete = snapshot?.status === "completed";
+  const { items: resultItems } = useRunOutputs(
+    runner.workflowId,
+    runner.runId,
+    isComplete,
   );
 
   const canRun =
@@ -300,6 +309,11 @@ export default function GeneratePage() {
         }}>
           SSE: {sseError}
         </div>
+      )}
+
+      {/* Results grid — rendered images after run completes */}
+      {resultItems && resultItems.length > 0 && (
+        <ResultsGrid items={resultItems} title="Top Candidates" />
       )}
 
       {/* Debug panel */}

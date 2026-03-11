@@ -321,6 +321,21 @@ Files Modified (Session 24):
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
 - docs/SESSION_CONTEXT.md (this file)
 
+Completed (Session 28 — Confirm before template replace):
+- [x] Created ConfirmReplaceDialog component: overlay + card matching SaveAsTemplateDialog pattern; Cancel / Replace (red) buttons; template name in message
+- [x] Added pendingTemplate local state to CanvasInner: holds { graph, name } when dirty=true and user picks a template
+- [x] Refactored handleTemplateSelect: if dirty → store pending; if clean → apply immediately
+- [x] Added handleConfirmReplace (apply + clear) and handleCancelReplace (clear only)
+- [x] Dialog renders conditionally at bottom of CanvasInner; no store changes required
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 28):
+- apps/web/src/components/canvas/ConfirmReplaceDialog.tsx
+
+Files Modified (Session 28):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (pendingTemplate state, guard, dialog render)
+- docs/SESSION_CONTEXT.md (this file)
+
 Completed (Session 27 — Canvas connection validation):
 - [x] Created apps/web/src/lib/connectionValidation.ts: isConnectionValid(nodes, connection) using PORT_COMPATIBILITY from @aistudio/shared
 - [x] Wired isValidConnection prop on <ReactFlow> in WorkflowCanvas.tsx — React Flow's native visual rejection (red line, no snap) when incompatible ports are dragged

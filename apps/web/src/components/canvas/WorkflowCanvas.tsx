@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -20,6 +20,7 @@ import { NodePalette } from "./NodePalette";
 import { TemplatePicker } from "./TemplatePicker";
 import { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
 import { CustomNode } from "./CustomNode";
+import { ConfirmReplaceDialog } from "./ConfirmReplaceDialog";
 import { InspectorPanel } from "@/components/inspector";
 import { RunDebuggerPanel } from "@/components/debugger";
 
@@ -58,6 +59,13 @@ function CanvasInner() {
   } = useWorkflowStore();
 
   const { screenToFlowPosition } = useReactFlow();
+
+  // Pending template load — set when dirty=true and user picks a template.
+  // Cleared on cancel or after confirming the replace.
+  const [pendingTemplate, setPendingTemplate] = useState<{
+    graph: WorkflowGraph;
+    name: string;
+  } | null>(null);
 
   // Find the selected workflow node for the inspector
   const selectedNode: WorkflowNode | null = useMemo(() => {
@@ -99,8 +107,10 @@ function CanvasInner() {
     [nodes],
   );
 
-  // Load a template graph into the store
-  const handleTemplateSelect = useCallback(
+  // Load a template graph into the store.
+  // If the canvas has unsaved changes, hold the selection in pendingTemplate
+  // and wait for the user to confirm before replacing the graph.
+  const applyTemplate = useCallback(
     (graph: WorkflowGraph, name: string) => {
       const meta = useWorkflowStore.getState().meta;
       if (meta) {
@@ -111,6 +121,28 @@ function CanvasInner() {
     },
     [loadWorkflow],
   );
+
+  const handleTemplateSelect = useCallback(
+    (graph: WorkflowGraph, name: string) => {
+      if (dirty) {
+        setPendingTemplate({ graph, name });
+      } else {
+        applyTemplate(graph, name);
+      }
+    },
+    [dirty, applyTemplate],
+  );
+
+  const handleConfirmReplace = useCallback(() => {
+    if (pendingTemplate) {
+      applyTemplate(pendingTemplate.graph, pendingTemplate.name);
+      setPendingTemplate(null);
+    }
+  }, [pendingTemplate, applyTemplate]);
+
+  const handleCancelReplace = useCallback(() => {
+    setPendingTemplate(null);
+  }, []);
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback(
@@ -239,6 +271,14 @@ function CanvasInner() {
         onClose={toggleSaveAsTemplate}
         getGraph={getWorkflowGraph}
         defaultName={useWorkflowStore.getState().meta?.name}
+      />
+
+      {/* Confirm replace dialog — shown when dirty canvas + template selected */}
+      <ConfirmReplaceDialog
+        open={pendingTemplate !== null}
+        templateName={pendingTemplate?.name}
+        onCancel={handleCancelReplace}
+        onConfirm={handleConfirmReplace}
       />
     </div>
   );

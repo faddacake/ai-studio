@@ -20,6 +20,8 @@ export default function WorkflowsPage() {
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchWorkflows = useCallback(async () => {
     const res = await fetch("/api/workflows");
@@ -32,6 +34,17 @@ export default function WorkflowsPage() {
   useEffect(() => {
     fetchWorkflows();
   }, [fetchWorkflows]);
+
+  async function handleDelete(id: string) {
+    const res = await fetch(`/api/workflows/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setWorkflows((prev) => prev.filter((w) => w.id !== id));
+      setDeletingId(null);
+    } else {
+      setDeleteError("Failed to delete — please try again");
+      setDeletingId(null);
+    }
+  }
 
   async function handleCreate() {
     if (!newName.trim()) return;
@@ -79,6 +92,23 @@ export default function WorkflowsPage() {
           + New Workflow
         </button>
       </div>
+
+      {deleteError && (
+        <div style={{
+          marginBottom: 16, padding: "10px 14px", borderRadius: 8,
+          backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
+          fontSize: 13, color: "var(--color-error)",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          {deleteError}
+          <button
+            onClick={() => setDeleteError(null)}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-error)", fontSize: 16, lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p style={{ color: "var(--color-text-muted)" }}>Loading...</p>
@@ -137,9 +167,35 @@ export default function WorkflowsPage() {
                   {w.description}
                 </p>
               )}
-              <p style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 8 }}>
-                Updated {new Date(w.updatedAt).toLocaleDateString()}
-              </p>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+                <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0 }}>
+                  Updated {new Date(w.updatedAt).toLocaleDateString()}
+                </p>
+                {deletingId === w.id ? (
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>Delete?</span>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(w.id); }}
+                      style={{ fontSize: 12, fontWeight: 600, color: "var(--color-error)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeletingId(null); }}
+                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+                    >
+                      No
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeletingId(w.id); }}
+                    style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
             </Link>
           ))}
         </div>

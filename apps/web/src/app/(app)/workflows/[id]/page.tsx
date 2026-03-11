@@ -3,7 +3,6 @@
 import { useEffect, useState, use } from "react";
 import { useWorkflowStore } from "@/stores/workflowStore";
 import { WorkflowCanvas } from "@/components/canvas";
-import { useRunEvents } from "@/hooks/useRunEvents";
 import type { WorkflowGraph } from "@aistudio/shared";
 
 interface WorkflowRow {
@@ -22,10 +21,8 @@ export default function WorkflowEditorPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
-  const currentRunId = useWorkflowStore((s) => s.currentRunId);
 
-  // Subscribe to SSE run updates (no-ops when currentRunId is null)
-  useRunEvents(id, currentRunId);
+  // SSE run events are subscribed inside WorkflowCanvas/CanvasInner — no duplicate needed here.
 
   useEffect(() => {
     async function load() {

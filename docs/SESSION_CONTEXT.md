@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-10
-Session: Rename Error Recovery (Optimistic Revert)
+Session: Delete Action on Workflow Cards
 
 ---
 
@@ -319,6 +319,32 @@ Files Created (Session 24):
 Files Modified (Session 24):
 - packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 43 — Delete action on workflow cards):
+- [x] Added `deletingId` + `deleteError` local state — no store changes
+- [x] `handleDelete(id)`: calls DELETE /api/workflows/:id; on success filters list locally (no refetch); on failure sets deleteError
+- [x] Per-card inline confirm: "Delete" button → "Delete? Yes / No" row; both stop propagation so the Link doesn't navigate
+- [x] Dismissable error banner above the list on delete failure — matches existing create-error style
+- [x] Only one card can be in confirm state at a time (new click replaces previous deletingId)
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 43): none
+
+Files Modified (Session 43):
+- apps/web/src/app/(app)/workflows/page.tsx (deletingId/deleteError state, handleDelete, inline confirm row, error banner)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 42 — Workflow list page audit + duplicate SSE fix):
+- [x] /workflows page already fully implemented: GET /api/workflows, cards with name/description/updatedAt/lastRunStatus badge, empty state, Create Workflow modal, links to /workflows/:id
+- [x] Identified duplicate useRunEvents() call: editor page AND CanvasInner both subscribed to the same SSE stream
+- [x] Removed redundant useRunEvents(id, currentRunId) + its import from /workflows/[id]/page.tsx — CanvasInner is the single subscriber
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 42): none
+
+Files Modified (Session 42):
+- apps/web/src/app/(app)/workflows/[id]/page.tsx (removed duplicate useRunEvents call + import)
 - docs/SESSION_CONTEXT.md (this file)
 
 Completed (Session 41 — Rename error recovery):

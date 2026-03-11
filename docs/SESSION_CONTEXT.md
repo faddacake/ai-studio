@@ -321,6 +321,20 @@ Files Modified (Session 24):
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
 - docs/SESSION_CONTEXT.md (this file)
 
+Completed (Session 27 — Canvas connection validation):
+- [x] Created apps/web/src/lib/connectionValidation.ts: isConnectionValid(nodes, connection) using PORT_COMPATIBILITY from @aistudio/shared
+- [x] Wired isValidConnection prop on <ReactFlow> in WorkflowCanvas.tsx — React Flow's native visual rejection (red line, no snap) when incompatible ports are dragged
+- [x] Typed for Connection | Edge to match React Flow's IsValidConnection<Edge> signature
+- [x] No new state, no toast, no engine changes — pure canvas-layer validation
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 27):
+- apps/web/src/lib/connectionValidation.ts
+
+Files Modified (Session 27):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (isValidConnection wiring)
+- docs/SESSION_CONTEXT.md (this file)
+
 Completed (Session 26 — All Candidates expandable section):
 - [x] Extended useRunOutputs: added allItems field; extracts all_candidates_out (CandidateCollection) alongside existing selection_out in one fetch
 - [x] Updated ResultsGrid: title prop now accepts null to suppress the heading, enabling embedding inside a parent container

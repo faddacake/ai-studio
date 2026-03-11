@@ -12,8 +12,10 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
+import type { Connection, Edge } from "@xyflow/react";
 import type { WorkflowNode, WorkflowGraph } from "@aistudio/shared";
 import { useWorkflowStore, fromFlowNode } from "@/stores/workflowStore";
+import { isConnectionValid } from "@/lib/connectionValidation";
 import { NodePalette } from "./NodePalette";
 import { TemplatePicker } from "./TemplatePicker";
 import { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
@@ -90,6 +92,13 @@ function CanvasInner() {
     selectNode(null);
   }, [selectNode]);
 
+  // Port compatibility check — passed to ReactFlow as isValidConnection.
+  // When false, ReactFlow refuses the drag and shows a red indicator.
+  const handleIsValidConnection = useCallback(
+    (connection: Connection | Edge) => isConnectionValid(nodes, connection),
+    [nodes],
+  );
+
   // Load a template graph into the store
   const handleTemplateSelect = useCallback(
     (graph: WorkflowGraph, name: string) => {
@@ -133,6 +142,7 @@ function CanvasInner() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          isValidConnection={handleIsValidConnection}
           onNodeClick={handleNodeClick}
           onPaneClick={handlePaneClick}
           fitView

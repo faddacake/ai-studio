@@ -57,10 +57,17 @@ export default function HistoryPage({
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
         <Link
+          href="/workflows"
+          style={{ fontSize: 13, color: "var(--color-text-muted)", textDecoration: "none" }}
+        >
+          ← Workflows
+        </Link>
+        <span style={{ color: "var(--color-border)" }}>·</span>
+        <Link
           href={`/workflows/${id}`}
           style={{ fontSize: 13, color: "var(--color-text-muted)", textDecoration: "none" }}
         >
-          ← Editor
+          Editor
         </Link>
         <span style={{ color: "var(--color-border)" }}>·</span>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--color-text-primary)", margin: 0 }}>

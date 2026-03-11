@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -15,6 +15,7 @@ import "@xyflow/react/dist/style.css";
 import type { Connection, Edge, Node, OnBeforeDelete } from "@xyflow/react";
 import type { WorkflowNode, WorkflowGraph } from "@aistudio/shared";
 import { useWorkflowStore, fromFlowNode } from "@/stores/workflowStore";
+import { useRunEvents } from "@/hooks/useRunEvents";
 import { isConnectionValid } from "@/lib/connectionValidation";
 import { NodePalette } from "./NodePalette";
 import { TemplatePicker } from "./TemplatePicker";
@@ -35,6 +36,7 @@ function CanvasInner() {
   const {
     nodes,
     edges,
+    meta,
     onNodesChange,
     onEdgesChange,
     onConnect,
@@ -45,8 +47,10 @@ function CanvasInner() {
     templatePickerOpen,
     saveAsTemplateOpen,
     debugSnapshot,
+    currentRunId,
     dirty,
     saving,
+    isRunning,
     addNode,
     selectNode,
     updateNodeParam,
@@ -56,8 +60,62 @@ function CanvasInner() {
     toggleTemplatePicker,
     toggleSaveAsTemplate,
     saveGraph,
+    runWorkflow,
     getWorkflowGraph,
   } = useWorkflowStore();
+
+  // Subscribe to SSE run events — updates debugSnapshot in the store,
+  // which drives the status dots on CustomNode and the RunDebuggerPanel.
+  useRunEvents(meta?.id ?? "", currentRunId);
+
+  // ── Run-complete badge ────────────────────────────────────────────────────
+  // Shows briefly next to the Run Workflow button when a run reaches a
+  // terminal status, then auto-dismisses after 3 s.
+
+  const [runBadge, setRunBadge] = useState<{
+    label: string;
+    colorClass: string;
+  } | null>(null);
+  const badgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const TERMINAL_BADGE: Record<string, { label: string; colorClass: string }> = {
+    completed:       { label: "✓ Completed",       colorClass: "border-emerald-600 bg-emerald-600/10 text-emerald-400" },
+    failed:          { label: "✗ Failed",           colorClass: "border-red-600 bg-red-600/10 text-red-400" },
+    partial_failure: { label: "✗ Partial Failure",  colorClass: "border-red-600 bg-red-600/10 text-red-400" },
+    cancelled:       { label: "— Cancelled",        colorClass: "border-yellow-500 bg-yellow-500/10 text-yellow-400" },
+    budget_exceeded: { label: "— Budget Exceeded",  colorClass: "border-yellow-500 bg-yellow-500/10 text-yellow-400" },
+  };
+
+  // Detect transition to terminal status → show badge
+  useEffect(() => {
+    const status = debugSnapshot?.status;
+    if (!status) return;
+    const badge = TERMINAL_BADGE[status];
+    if (!badge) return;
+
+    setRunBadge(badge);
+    if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current);
+    badgeTimerRef.current = setTimeout(() => {
+      setRunBadge(null);
+      badgeTimerRef.current = null;
+    }, 3000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debugSnapshot?.status]);
+
+  // New run started → dismiss badge immediately
+  useEffect(() => {
+    if (!isRunning) return;
+    setRunBadge(null);
+    if (badgeTimerRef.current) {
+      clearTimeout(badgeTimerRef.current);
+      badgeTimerRef.current = null;
+    }
+  }, [isRunning]);
+
+  // Cleanup timer on unmount
+  useEffect(() => () => {
+    if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current);
+  }, []);
 
   const { screenToFlowPosition } = useReactFlow();
 
@@ -278,6 +336,36 @@ function CanvasInner() {
           >
             Save as Template
           </button>
+          <button
+            type="button"
+            onClick={runWorkflow}
+            disabled={isRunning || !meta || nodes.length === 0}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              isRunning || !meta || nodes.length === 0
+                ? "border-neutral-700 bg-neutral-900 text-neutral-600 cursor-default"
+                : "border-emerald-600 bg-emerald-600/10 text-emerald-400 hover:bg-emerald-600/20"
+            }`}
+          >
+            {/* Live pulse dot — visible only while the run is actively executing */}
+            {!isRunning && debugSnapshot?.status === "running" && (
+              <span
+                className="inline-block h-2 w-2 shrink-0 rounded-full animate-pulse"
+                style={{ backgroundColor: "#60a5fa" }}
+                aria-label="Run in progress"
+              />
+            )}
+            {isRunning ? "Starting..." : "Run Workflow"}
+          </button>
+          {runBadge && (
+            <span
+              className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${runBadge.colorClass}`}
+            >
+              {runBadge.label}
+            </span>
+          )}
+          <span className="ml-1 text-xs text-neutral-600 select-none">
+            {nodes.length} {nodes.length === 1 ? "node" : "nodes"} · {edges.length} {edges.length === 1 ? "edge" : "edges"}
+          </span>
         </div>
       </div>
 

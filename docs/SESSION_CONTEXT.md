@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-10
-Session: ArtifactRef Image Rendering in Generate UI
+Session: Node/Edge Count Summary in Canvas Top Bar
 
 ---
 
@@ -319,6 +319,64 @@ Files Created (Session 24):
 Files Modified (Session 24):
 - packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 34 — Node/edge count summary in canvas top bar):
+- [x] Derived counts directly from `nodes.length` / `edges.length` already in scope — no new state
+- [x] Renders "X node(s) · Y edge(s)" as a lightweight `<span>` at the end of the top bar
+- [x] Correct singular/plural for both nouns
+- [x] Styled as `text-xs text-neutral-600 select-none` — reads as passive metadata, not a control
+- [x] Updates live on every graph change since it re-renders with the store
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 34): none
+
+Files Modified (Session 34):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (count span added to top bar)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 33 — Live pulse dot on Run Workflow button):
+- [x] Derived `isExecuting = !isRunning && debugSnapshot?.status === "running"` — no new state or effects
+- [x] Added animated blue dot inside the Run Workflow button using exact same pattern as CustomNode status dot: `h-2 w-2 rounded-full animate-pulse` at `#60a5fa` (blue-400)
+- [x] Dot is absent before submission, during the "Starting..." submit phase, and after terminal completion — no conflict with the terminal badge
+- [x] Button updated to `inline-flex items-center gap-1.5` to align dot + label cleanly
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 33): none
+
+Files Modified (Session 33):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (inline-flex button, pulse dot span)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 32 — Run-complete badge in canvas top bar):
+- [x] Added `runBadge` local state + `badgeTimerRef` to CanvasInner — no store changes
+- [x] `useEffect` on `debugSnapshot?.status` detects terminal transition → sets badge + starts 3 s auto-dismiss timer
+- [x] `useEffect` on `isRunning` clears badge immediately when a new run starts
+- [x] Cleanup effect cancels timer on unmount
+- [x] Badge colors: emerald for completed, red for failed/partial_failure, yellow for cancelled/budget_exceeded — matches RunDebuggerPanel tokens
+- [x] Badge renders as a `<span>` with same pill styling as top-bar buttons; sits inline after the Run Workflow button
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 32): none
+
+Files Modified (Session 32):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (useEffect import, TERMINAL_BADGE map, runBadge state, badge render)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 31 — Run Workflow button in canvas top bar):
+- [x] Added `isRunning` state + `runWorkflow` async action to Zustand workflow store
+- [x] `runWorkflow` auto-saves dirty graph before POSTing to `/api/workflows/:id/runs`
+- [x] Sets `currentRunId` + opens debugger panel on success; reuses existing `setCurrentRunId`
+- [x] Mounted `useRunEvents(meta.id, currentRunId)` in `CanvasInner` — SSE → `setDebugSnapshot` → status dots + debugger update live
+- [x] Added "Run Workflow" button to canvas top bar with emerald accent styling
+- [x] Button disabled when: no workflow loaded (`!meta`), empty canvas (`nodes.length === 0`), or run in-progress (`isRunning`)
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 31): none
+
+Files Modified (Session 31):
+- apps/web/src/stores/workflowStore.ts (added isRunning, runWorkflow)
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (useRunEvents mount, Run Workflow button)
 - docs/SESSION_CONTEXT.md (this file)
 
 Completed (Session 30 — Mini node status overlay on canvas):

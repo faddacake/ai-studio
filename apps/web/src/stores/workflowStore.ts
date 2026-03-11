@@ -91,6 +91,7 @@ interface WorkflowState {
   currentRunId: string | null;
   dirty: boolean;
   saving: boolean;
+  isRunning: boolean;
 
   // React Flow callbacks
   onNodesChange: OnNodesChange;
@@ -111,6 +112,7 @@ interface WorkflowState {
   setDebugSnapshot: (snapshot: RunDebugSnapshot | null) => void;
   setCurrentRunId: (runId: string | null) => void;
   saveGraph: () => Promise<void>;
+  runWorkflow: () => Promise<void>;
   getWorkflowGraph: () => WorkflowGraph;
 }
 
@@ -130,6 +132,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   currentRunId: null,
   dirty: false,
   saving: false,
+  isRunning: false,
 
   onNodesChange: (changes) => {
     set((s) => ({
@@ -241,6 +244,32 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       }
     } finally {
       set({ saving: false });
+    }
+  },
+
+  runWorkflow: async () => {
+    const { meta, dirty } = get();
+    if (!meta) return;
+
+    set({ isRunning: true });
+    try {
+      // Auto-save so the DB has the latest graph before running
+      if (dirty) {
+        await get().saveGraph();
+      }
+
+      const res = await fetch(`/api/workflows/${meta.id}/runs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error(`Failed to start run: ${res.status}`);
+      const { id: runId } = (await res.json()) as { id: string };
+
+      set({ currentRunId: runId, debuggerOpen: true });
+    } catch (err) {
+      console.error("[runWorkflow]", err);
+    } finally {
+      set({ isRunning: false });
     }
   },
 }));

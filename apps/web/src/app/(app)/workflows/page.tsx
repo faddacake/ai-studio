@@ -167,6 +167,7 @@ export default function WorkflowsPage() {
                   {w.description}
                 </p>
               )}
+              <LastRunIndicator status={w.lastRunStatus} lastRunAt={w.lastRunAt} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
                 <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0 }}>
                   Updated {new Date(w.updatedAt).toLocaleDateString()}
@@ -311,6 +312,61 @@ export default function WorkflowsPage() {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── Last-run dot + label ───────────────────────────────────────────────────
+
+const RUN_DOT_COLOR: Record<string, string> = {
+  completed:       "#4ade80",
+  running:         "#60a5fa",
+  failed:          "#f87171",
+  partial_failure: "#f87171",
+  cancelled:       "#737373",
+  budget_exceeded: "#facc15",
+  pending:         "#facc15",
+};
+
+function formatTimeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1)  return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function LastRunIndicator({
+  status,
+  lastRunAt,
+}: {
+  status: string | null;
+  lastRunAt: string | null;
+}) {
+  const dotColor = status ? (RUN_DOT_COLOR[status] ?? "#737373") : undefined;
+  const label    = status ? status.replace("_", " ") : null;
+  const time     = lastRunAt ? formatTimeAgo(lastRunAt) : null;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+      {dotColor ? (
+        <>
+          <span style={{
+            display: "inline-block", width: 7, height: 7,
+            borderRadius: "50%", backgroundColor: dotColor, flexShrink: 0,
+          }} />
+          <span style={{ fontSize: 12, color: "var(--color-text-secondary)", textTransform: "capitalize" }}>
+            {label}
+          </span>
+          {time && (
+            <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>· {time}</span>
+          )}
+        </>
+      ) : (
+        <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>No runs yet</span>
       )}
     </div>
   );

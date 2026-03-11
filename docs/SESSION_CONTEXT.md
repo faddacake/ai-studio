@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-10
-Session: Back to Workflows Link in Canvas Top Bar
+Session: Run History Endpoint and Page
 
 ---
 
@@ -319,6 +319,60 @@ Files Created (Session 24):
 Files Modified (Session 24):
 - packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 47 — Run history endpoint and page):
+- [x] Added `GET /api/workflows/:id/runs`: validates workflow exists (404 on miss), queries `runs` table ordered by `createdAt DESC`, returns summary fields only (no graphSnapshot)
+- [x] Added `desc` import from drizzle-orm to runs route
+- [x] Replaced history page stub with real client component: fetches run list, renders status dot + label + short runId + duration + cost + timestamp
+- [x] `durationLabel()` computes ms/s/m from startedAt/completedAt
+- [x] Empty state: dashed border card with guidance text; error state: inline message
+- [x] "← Editor" back-link to `/workflows/:id`
+- [x] Status colors match `RUN_DOT_COLOR` / `STATUS_DOT` palettes used elsewhere
+- [x] TypeCheck passes: 0 errors
+- [x] Committed as 1b8fc36
+
+Schema limitations:
+- `budgetMode` stored but not shown (not useful for history at this stage)
+- No node-level breakdown in history view (would need `nodeExecutions` table join, not yet wired)
+- `graphSnapshot` excluded from response (large; not needed for list view)
+
+Files Added (Session 47): none (history page replaced in place)
+
+Files Modified (Session 47):
+- apps/web/src/app/api/workflows/[id]/runs/route.ts (GET handler + desc import)
+- apps/web/src/app/(app)/workflows/[id]/history/page.tsx (full replacement of stub)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 46 — Persist run outcome to workflow record):
+- [x] Root cause: RunCoordinator is pure in-memory; nothing wrote lastRunStatus/lastRunAt to DB
+- [x] Fix: `.then()` continuation after `coordinator.startRun()` (resolves when full DAG completes)
+- [x] Writes `runs` table row: id, workflowId, status, graphSnapshot, totalCost, startedAt, completedAt, createdAt
+- [x] Updates `workflows` row: lastRunId, lastRunStatus, lastRunAt, updatedAt
+- [x] Covers all terminal statuses: completed, failed, partial_failure, budget_exceeded (all set run.completedAt)
+- [x] cancelRun() not yet triggered via API — noted as edge case
+- [x] All existing imports (getDb, schema, eq, workflowId, graph) already in scope — zero new imports
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 46): none
+
+Files Modified (Session 46):
+- apps/web/src/app/api/workflows/[id]/runs/route.ts (.then() DB persistence after startRun)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 45 — Last-run status indicator on workflow cards):
+- [x] Added `RUN_DOT_COLOR` map matching CustomNode STATUS_DOT palette (completed/running/failed/partial_failure/cancelled/budget_exceeded/pending)
+- [x] Added `formatTimeAgo(iso)` helper: just now / Xm ago / Xh ago / Xd ago
+- [x] Added `LastRunIndicator` component: colored dot + capitalized status label + relative time; "No runs yet" when status is null
+- [x] Rendered between description and footer row on each card — visually subordinate to title
+- [x] Reuses `lastRunStatus` and `lastRunAt` already returned by GET /api/workflows — no API changes
+- [x] Existing StatusBadge in card header left intact (distinct role: quick color-only read)
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 45): none
+
+Files Modified (Session 45):
+- apps/web/src/app/(app)/workflows/page.tsx (RUN_DOT_COLOR, formatTimeAgo, LastRunIndicator, card render)
 - docs/SESSION_CONTEXT.md (this file)
 
 Completed (Session 44 — Back to Workflows link in canvas top bar):

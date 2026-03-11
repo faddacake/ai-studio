@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 interface RunRecord {
@@ -37,9 +38,25 @@ export default function HistoryPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rerunning, setRerunning] = useState(false);
+  const [rerunError, setRerunError] = useState<string | null>(null);
+
+  async function handleRerun() {
+    setRerunning(true);
+    setRerunError(null);
+    try {
+      const res = await fetch(`/api/workflows/${id}/runs`, { method: "POST" });
+      if (!res.ok) throw new Error(`${res.status}`);
+      router.push(`/workflows/${id}`);
+    } catch {
+      setRerunError("Failed to start run — please try again");
+      setRerunning(false);
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/workflows/${id}/runs`)
@@ -81,6 +98,10 @@ export default function HistoryPage({
 
       {error && (
         <p style={{ fontSize: 13, color: "var(--color-error)" }}>{error}</p>
+      )}
+
+      {rerunError && (
+        <p style={{ fontSize: 13, color: "var(--color-error)", marginBottom: 12 }}>{rerunError}</p>
       )}
 
       {!loading && !error && runs.length > 0 && (() => {
@@ -143,7 +164,7 @@ export default function HistoryPage({
                   </code>
                 </div>
 
-                {/* Right: duration + cost */}
+                {/* Right: duration + cost + re-run */}
                 <div style={{ display: "flex", gap: 16, justifyContent: "flex-end", alignItems: "center" }}>
                   <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                     {durationLabel(run.startedAt, run.completedAt)}
@@ -153,6 +174,17 @@ export default function HistoryPage({
                       ${run.totalCost.toFixed(4)}
                     </span>
                   )}
+                  <button
+                    onClick={handleRerun}
+                    disabled={rerunning}
+                    style={{
+                      fontSize: 12, background: "none", border: "none", padding: "2px 6px",
+                      color: rerunning ? "var(--color-text-muted)" : "var(--color-text-secondary)",
+                      cursor: rerunning ? "default" : "pointer",
+                    }}
+                  >
+                    {rerunning ? "Starting…" : "Re-run"}
+                  </button>
                 </div>
 
                 {/* Second row: date */}

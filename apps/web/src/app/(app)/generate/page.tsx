@@ -53,11 +53,12 @@ export default function GeneratePage() {
   );
 
   const isComplete = snapshot?.status === "completed";
-  const { items: resultItems } = useRunOutputs(
+  const { items: resultItems, allItems } = useRunOutputs(
     runner.workflowId,
     runner.runId,
     isComplete,
   );
+  const [allCandidatesOpen, setAllCandidatesOpen] = useState(false);
 
   const canRun =
     prompt.trim().length > 0 &&
@@ -314,6 +315,55 @@ export default function GeneratePage() {
       {/* Results grid — rendered images after run completes */}
       {resultItems && resultItems.length > 0 && (
         <ResultsGrid items={resultItems} title="Top Candidates" />
+      )}
+
+      {/* All Candidates — collapsible section */}
+      {allItems && allItems.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <button
+            type="button"
+            onClick={() => setAllCandidatesOpen((o) => !o)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              marginBottom: allCandidatesOpen ? 12 : 0,
+            }}
+          >
+            {/* Chevron */}
+            <svg
+              width="12" height="12" viewBox="0 0 12 12"
+              fill="none" stroke="currentColor"
+              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+              style={{
+                color: "var(--color-text-muted)",
+                transform: allCandidatesOpen ? "rotate(0deg)" : "rotate(-90deg)",
+                transition: "transform 0.15s ease",
+              }}
+            >
+              <path d="M3 4.5l3 3 3-3" />
+            </svg>
+            <span style={{
+              fontSize: 15,
+              fontWeight: 700,
+              color: "var(--color-text-primary)",
+              letterSpacing: "-0.01em",
+            }}>
+              All Candidates
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-text-muted)" }}>
+              {allItems.length} image{allItems.length !== 1 ? "s" : ""}
+            </span>
+          </button>
+
+          {allCandidatesOpen && (
+            <ResultsGrid items={allItems} title={null} />
+          )}
+        </div>
       )}
 
       {/* Debug panel */}

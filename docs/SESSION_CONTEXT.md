@@ -321,6 +321,19 @@ Files Modified (Session 24):
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
 - docs/SESSION_CONTEXT.md (this file)
 
+Completed (Session 26 — All Candidates expandable section):
+- [x] Extended useRunOutputs: added allItems field; extracts all_candidates_out (CandidateCollection) alongside existing selection_out in one fetch
+- [x] Updated ResultsGrid: title prop now accepts null to suppress the heading, enabling embedding inside a parent container
+- [x] Added collapsible "All Candidates" section to Generate page: toggle button with animated chevron, default collapsed, shows all N images via ResultsGrid when expanded
+- [x] Top-K selected grid unchanged; all candidates renders below it and above debug panel
+- [x] TypeCheck passes: 0 errors
+
+Files Modified (Session 26):
+- apps/web/src/hooks/useRunOutputs.ts (added allItems to state + extraction logic)
+- apps/web/src/components/generate/ResultsGrid.tsx (title accepts null to suppress heading)
+- apps/web/src/app/(app)/generate/page.tsx (destructures allItems, adds collapsible section)
+- docs/SESSION_CONTEXT.md (this file)
+
 Completed (Session 25 — committed as milestone-artifact-rendering):
 - [x] Added GET /api/workflows/[id]/runs/[runId]/outputs — returns completed node outputs (CandidateSelection with ArtifactRef items) from the RunCoordinator
 - [x] Added GET /api/artifacts?path=<encoded-path> — serves local artifact files; restricted to /tmp/aistudio-runs/ prefix to prevent path traversal

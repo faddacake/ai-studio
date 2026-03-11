@@ -13,7 +13,8 @@ import type { CandidateItem } from "@aistudio/shared";
 
 export interface ResultsGridProps {
   items: CandidateItem[];
-  title?: string;
+  /** Section heading. Pass null to suppress the heading entirely. */
+  title?: string | null;
 }
 
 export function ResultsGrid({ items, title = "Selected Results" }: ResultsGridProps) {
@@ -25,27 +26,29 @@ export function ResultsGrid({ items, title = "Selected Results" }: ResultsGridPr
 
   return (
     <div style={{ marginBottom: 24 }}>
-      <h2
-        style={{
-          fontSize: 15,
-          fontWeight: 700,
-          color: "var(--color-text-primary)",
-          marginBottom: 12,
-          letterSpacing: "-0.01em",
-        }}
-      >
-        {title}
-        <span
+      {title != null && (
+        <h2
           style={{
-            marginLeft: 8,
-            fontSize: 12,
-            fontWeight: 500,
-            color: "var(--color-text-muted)",
+            fontSize: 15,
+            fontWeight: 700,
+            color: "var(--color-text-primary)",
+            marginBottom: 12,
+            letterSpacing: "-0.01em",
           }}
         >
-          {imageItems.length} image{imageItems.length !== 1 ? "s" : ""}
-        </span>
-      </h2>
+          {title}
+          <span
+            style={{
+              marginLeft: 8,
+              fontSize: 12,
+              fontWeight: 500,
+              color: "var(--color-text-muted)",
+            }}
+          >
+            {imageItems.length} image{imageItems.length !== 1 ? "s" : ""}
+          </span>
+        </h2>
+      )}
 
       <div
         style={{

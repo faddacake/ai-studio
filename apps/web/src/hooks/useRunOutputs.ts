@@ -4,14 +4,20 @@
  * useRunOutputs — fetches completed node outputs for a run once it finishes.
  *
  * When isComplete becomes true it hits GET /api/workflows/:id/runs/:runId/outputs
- * and returns the first CandidateSelection found in any node's outputs.
- * Used by the Generate page to render generated images after a best-of-n run.
+ * and returns:
+ *   - items     — top-K selected candidates from selection_out
+ *   - allItems  — all N ranked candidates from all_candidates_out
+ *
+ * Used by the Generate page to render selected + all generated images.
  */
 import { useState, useEffect } from "react";
 import type { CandidateItem } from "@aistudio/shared";
 
 export interface RunOutputsState {
+  /** Top-K selected candidates (from selection_out) */
   items: CandidateItem[] | null;
+  /** All N ranked candidates (from all_candidates_out) */
+  allItems: CandidateItem[] | null;
   loading: boolean;
   error: string | null;
 }
@@ -23,13 +29,14 @@ export function useRunOutputs(
 ): RunOutputsState {
   const [state, setState] = useState<RunOutputsState>({
     items: null,
+    allItems: null,
     loading: false,
     error: null,
   });
 
   useEffect(() => {
     // Reset when run changes
-    setState({ items: null, loading: false, error: null });
+    setState({ items: null, allItems: null, loading: false, error: null });
   }, [workflowId, runId]);
 
   useEffect(() => {
@@ -45,21 +52,33 @@ export function useRunOutputs(
         }>;
       })
       .then((data) => {
-        // Find the first node that has a selection_out with items (best-of-n output)
+        let items: CandidateItem[] = [];
+        let allItems: CandidateItem[] = [];
+
         for (const node of data.outputs ?? []) {
+          // Top-K selected candidates
           const sel = node.outputs.selection_out as
             | { items?: CandidateItem[] }
             | undefined;
           if (sel?.items && sel.items.length > 0) {
-            setState({ items: sel.items, loading: false, error: null });
-            return;
+            items = sel.items;
+          }
+
+          // All N ranked candidates
+          const all = node.outputs.all_candidates_out as
+            | { items?: CandidateItem[] }
+            | undefined;
+          if (all?.items && all.items.length > 0) {
+            allItems = all.items;
           }
         }
-        setState({ items: [], loading: false, error: null });
+
+        setState({ items, allItems, loading: false, error: null });
       })
       .catch((err: unknown) => {
         setState({
           items: null,
+          allItems: null,
           loading: false,
           error: err instanceof Error ? err.message : String(err),
         });

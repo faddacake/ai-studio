@@ -83,6 +83,15 @@ export default function HistoryPage({
         <p style={{ fontSize: 13, color: "var(--color-error)" }}>{error}</p>
       )}
 
+      {!loading && !error && runs.length > 0 && (() => {
+        const totalCost = runs.reduce((sum, r) => sum + (r.totalCost ?? 0), 0);
+        return (
+          <p style={{ fontSize: 13, color: "var(--color-text-muted)", marginBottom: 16 }}>
+            {runs.length} {runs.length === 1 ? "run" : "runs"} · Total cost: ${totalCost.toFixed(4)}
+          </p>
+        );
+      })()}
+
       {!loading && !error && runs.length === 0 && (
         <div style={{
           padding: "60px 20px", textAlign: "center",

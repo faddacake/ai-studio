@@ -189,12 +189,22 @@ export default function WorkflowsPage() {
                     </button>
                   </span>
                 ) : (
-                  <button
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeletingId(w.id); }}
-                    style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
-                  >
-                    Delete
-                  </button>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <a
+                      href={`/workflows/${w.id}/history`}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ fontSize: 12, color: "var(--color-text-muted)", textDecoration: "none", padding: "2px 6px" }}
+                    >
+                      History
+                    </a>
+                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeletingId(w.id); }}
+                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+                    >
+                      Delete
+                    </button>
+                  </span>
                 )}
               </div>
             </Link>

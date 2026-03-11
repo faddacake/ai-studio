@@ -3,6 +3,7 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { Port } from "@aistudio/shared";
+import { useWorkflowStore } from "@/stores/workflowStore";
 
 // ── Port color palette (matches InspectorPanel PortDot) ──
 
@@ -21,14 +22,33 @@ const RUNTIME_BADGE: Record<string, { label: string; className: string }> = {
   capability: { label: "Cap", className: "bg-amber-500/20 text-amber-400" },
 };
 
+// ── Run status dot ──
+
+const STATUS_DOT: Record<string, { color: string; pulse: boolean; label: string }> = {
+  pending:   { color: "#a3a3a3", pulse: false, label: "Pending" },
+  queued:    { color: "#facc15", pulse: false, label: "Queued" },
+  running:   { color: "#60a5fa", pulse: true,  label: "Running" },
+  completed: { color: "#4ade80", pulse: false, label: "Completed" },
+  failed:    { color: "#f87171", pulse: false, label: "Failed" },
+  cancelled: { color: "#737373", pulse: false, label: "Cancelled" },
+};
+
 // ── Component ──
 
-function CustomNodeComponent({ data, selected }: NodeProps) {
+function CustomNodeComponent({ id, data, selected }: NodeProps) {
   const inputs = (data.inputs as Port[]) ?? [];
   const outputs = (data.outputs as Port[]) ?? [];
   const label = (data.label as string) ?? "Node";
   const runtimeKind = (data.runtimeKind as string) ?? "";
   const badge = RUNTIME_BADGE[runtimeKind];
+
+  // Per-node run status — only re-renders when this node's status changes
+  const runStatus = useWorkflowStore((state) => {
+    if (!state.debugSnapshot) return null;
+    return state.debugSnapshot.nodes.find((n) => n.nodeId === id)?.status ?? null;
+  });
+
+  const dot = runStatus ? STATUS_DOT[runStatus] ?? null : null;
 
   return (
     <div
@@ -60,6 +80,14 @@ function CustomNodeComponent({ data, selected }: NodeProps) {
       <div className="px-3 py-2">
         {/* Header row */}
         <div className="flex items-center gap-1.5">
+          {/* Run status dot — only visible when a run snapshot is active */}
+          {dot && (
+            <span
+              className={`inline-block h-2 w-2 shrink-0 rounded-full ${dot.pulse ? "animate-pulse" : ""}`}
+              style={{ backgroundColor: dot.color }}
+              title={dot.label}
+            />
+          )}
           <span className="flex-1 truncate text-sm font-medium text-neutral-100">
             {label}
           </span>

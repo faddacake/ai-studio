@@ -321,6 +321,20 @@ Files Modified (Session 24):
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
 - docs/SESSION_CONTEXT.md (this file)
 
+Completed (Session 30 — Mini node status overlay on canvas):
+- [x] Added STATUS_DOT map to CustomNode: pending/queued/running/completed/failed/cancelled → color + pulse + label; colors match RunDebuggerPanel tokens exactly
+- [x] CustomNode reads its own run status from the Zustand store via targeted selector keyed to node id — only re-renders when its own status changes
+- [x] Status dot renders as a 2×2 rounded span at the start of the header row; running status uses animate-pulse; title attribute shows label on hover
+- [x] Dot is absent when debugSnapshot is null (no active run) — zero visual noise during editing
+- [x] No prop changes to WorkflowCanvas, no store changes, no engine changes
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 30): none
+
+Files Modified (Session 30):
+- apps/web/src/components/canvas/CustomNode.tsx (STATUS_DOT, useWorkflowStore selector, dot render)
+- docs/SESSION_CONTEXT.md (this file)
+
 Completed (Session 29 — Confirm before deleting connected node):
 - [x] Created ConfirmDeleteDialog: overlay + card matching existing dialog pattern; shows node label + edge count; Cancel / Delete (red) buttons
 - [x] Added onBeforeDelete handler in CanvasInner: counts edges connected to nodes being deleted; if any exist, stores pending state and returns Promise<boolean> resolved by dialog actions; if none, resolves immediately

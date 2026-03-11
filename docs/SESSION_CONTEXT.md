@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-10
-Session: Node/Edge Count Summary in Canvas Top Bar
+Session: Disabled-State Tooltip on Save Button
 
 ---
 
@@ -319,6 +319,70 @@ Files Created (Session 24):
 Files Modified (Session 24):
 - packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 39 — Disabled-state tooltip on Save button):
+- [x] Added `title` to Save button: saving → "Saving…" / !dirty → "No unsaved changes" / actionable → undefined
+- [x] Follows identical pattern to Run Workflow button (session 38)
+- [x] No behavior, label, or styling changes
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 39): none
+
+Files Modified (Session 39):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (title prop on Save button)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 38 — Disabled-state tooltip on Run Workflow button):
+- [x] Added `title` attribute to Run Workflow button with priority-ordered reason: isRunning → !meta → nodes.length===0
+- [x] Messages: "Run is starting…" / "No workflow loaded" / "Add nodes to the canvas first"
+- [x] `title` is `undefined` when button is enabled — no tooltip shown in the happy path
+- [x] Dependency-free (native title attribute); no behavior or styling changes
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 38): none
+
+Files Modified (Session 38):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (title prop on Run Workflow button)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 37 — Top bar divider between workflow actions and run controls):
+- [x] Added `<span className="h-4 w-px bg-neutral-700 mx-1" aria-hidden="true" />` between "Save as Template" and "Run Workflow"
+- [x] Groups: [name · Templates · Debugger · Save · Save as Template] | [Run Workflow · badge · count]
+- [x] No behavior, spacing, or button changes
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 37): none
+
+Files Modified (Session 37):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (divider span)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 36 — Save button keyboard shortcut label):
+- [x] Save button label updated: dirty state shows "Save ⌘S" with `<span className="opacity-50">` on the hint
+- [x] Hint only appears when the save action is actionable (dirty=true); "Saving..." and "Saved" states unchanged
+- [x] No platform detection added — ⌘S is the existing repo convention (handler already uses metaKey||ctrlKey)
+- [x] No behavior, layout, or styling changes — label-only addition
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 36): none
+
+Files Modified (Session 36):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (Save button label JSX)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 35 — Workflow name in canvas top bar):
+- [x] Renders `meta?.name` (fallback: "Untitled workflow") as a `<span>` at the start of the top bar
+- [x] Styled `text-xs font-medium text-neutral-400 select-none` — visually subordinate to action buttons
+- [x] `max-w-[200px] truncate` prevents long names from breaking the layout; full name on `title` tooltip
+- [x] No new state, no store changes — `meta` already destructured in CanvasInner
+- [x] Read-only; no rename UX added
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 35): none
+
+Files Modified (Session 35):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (name span added at start of top bar)
 - docs/SESSION_CONTEXT.md (this file)
 
 Completed (Session 34 — Node/edge count summary in canvas top bar):

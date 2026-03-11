@@ -295,6 +295,9 @@ function CanvasInner() {
 
         {/* Top bar: workflow controls */}
         <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
+          <span className="mr-1 max-w-[200px] truncate text-xs font-medium text-neutral-400 select-none" title={meta?.name ?? "Untitled workflow"}>
+            {meta?.name ?? "Untitled workflow"}
+          </span>
           <button
             type="button"
             onClick={toggleTemplatePicker}
@@ -321,13 +324,18 @@ function CanvasInner() {
             type="button"
             onClick={saveGraph}
             disabled={!dirty || saving}
+            title={
+              saving ? "Saving…" :
+              !dirty ? "No unsaved changes" :
+              undefined
+            }
             className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
               dirty && !saving
                 ? "border-blue-500 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
                 : "border-neutral-700 bg-neutral-900 text-neutral-600 cursor-default"
             }`}
           >
-            {saving ? "Saving..." : dirty ? "Save" : "Saved"}
+            {saving ? "Saving..." : dirty ? (<>Save <span className="opacity-50">⌘S</span></>) : "Saved"}
           </button>
           <button
             type="button"
@@ -336,10 +344,17 @@ function CanvasInner() {
           >
             Save as Template
           </button>
+          <span className="h-4 w-px bg-neutral-700 mx-1" aria-hidden="true" />
           <button
             type="button"
             onClick={runWorkflow}
             disabled={isRunning || !meta || nodes.length === 0}
+            title={
+              isRunning        ? "Run is starting…"              :
+              !meta            ? "No workflow loaded"             :
+              nodes.length === 0 ? "Add nodes to the canvas first" :
+              undefined
+            }
             className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
               isRunning || !meta || nodes.length === 0
                 ? "border-neutral-700 bg-neutral-900 text-neutral-600 cursor-default"

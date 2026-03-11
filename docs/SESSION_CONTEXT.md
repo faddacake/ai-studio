@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-10
-Session: History Link on Workflow List Cards
+Session: Workflows Breadcrumb on History Page
 
 ---
 
@@ -319,6 +319,19 @@ Files Created (Session 24):
 Files Modified (Session 24):
 - packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 50 — Workflows breadcrumb on history page):
+- [x] Added `← Workflows` Link (href="/workflows") before the existing Editor link in the history page header
+- [x] Changed `← Editor` label to just `Editor` (arrow moved to the top-level back link)
+- [x] Header now reads: `← Workflows · Editor · Run History`
+- [x] Navigation triangle fully closed from all three surfaces
+- [x] TypeCheck passes: 0 errors; committed as 937287a
+
+Files Added (Session 50): none
+
+Files Modified (Session 50):
+- apps/web/src/app/(app)/workflows/[id]/history/page.tsx (← Workflows link + header breadcrumb chain)
 - docs/SESSION_CONTEXT.md (this file)
 
 Completed (Session 49 — History link on workflow list cards):

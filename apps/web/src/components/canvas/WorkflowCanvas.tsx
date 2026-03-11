@@ -12,6 +12,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
+import Link from "next/link";
 import type { Connection, Edge, Node, OnBeforeDelete } from "@xyflow/react";
 import type { WorkflowNode, WorkflowGraph } from "@aistudio/shared";
 import { useWorkflowStore, fromFlowNode } from "@/stores/workflowStore";
@@ -331,6 +332,13 @@ function CanvasInner() {
 
         {/* Top bar: workflow controls */}
         <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
+          <Link
+            href="/workflows"
+            className="mr-1 text-xs text-neutral-500 transition-colors hover:text-neutral-300"
+            title="Back to workflows"
+          >
+            ← Workflows
+          </Link>
           {editingName ? (
             <input
               type="text"

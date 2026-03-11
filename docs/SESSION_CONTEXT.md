@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-10
-Session: Delete Action on Workflow Cards
+Session: Back to Workflows Link in Canvas Top Bar
 
 ---
 
@@ -319,6 +319,18 @@ Files Created (Session 24):
 Files Modified (Session 24):
 - packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 44 — Back to Workflows link in canvas top bar):
+- [x] Added Next.js `<Link href="/workflows">← Workflows</Link>` as the first element in the top bar
+- [x] Styled `text-xs text-neutral-500 hover:text-neutral-300 mr-1` — reads as nav context, not a primary action
+- [x] No changes to button grouping, divider, or any other top bar element
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 44): none
+
+Files Modified (Session 44):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (Link import, ← Workflows link at top bar start)
 - docs/SESSION_CONTEXT.md (this file)
 
 Completed (Session 43 — Delete action on workflow cards):

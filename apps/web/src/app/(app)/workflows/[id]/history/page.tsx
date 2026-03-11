@@ -85,9 +85,10 @@ export default function HistoryPage({
 
       {!loading && !error && runs.length > 0 && (() => {
         const totalCost = runs.reduce((sum, r) => sum + (r.totalCost ?? 0), 0);
+        const completed = runs.filter((r) => r.status === "completed").length;
         return (
           <p style={{ fontSize: 13, color: "var(--color-text-muted)", marginBottom: 16 }}>
-            {runs.length} {runs.length === 1 ? "run" : "runs"} · Total cost: ${totalCost.toFixed(4)}
+            {runs.length} {runs.length === 1 ? "run" : "runs"} · {completed} completed · Total cost: ${totalCost.toFixed(4)}
           </p>
         );
       })()}

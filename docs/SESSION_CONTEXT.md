@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-10
-Session: Aggregate Cost Summary on History Page
+Session: Completion Summary on History Page
 
 ---
 
@@ -319,6 +319,18 @@ Files Created (Session 24):
 Files Modified (Session 24):
 - packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 52 — Completion summary on history page):
+- [x] Added `completed = runs.filter((r) => r.status === "completed").length` to the summary IIFE
+- [x] Summary line now reads: "N run(s) · X completed · Total cost: $Y.YYYY"
+- [x] Zero-completed and all-completed cases render sensibly ("0 completed" / "N completed")
+- [x] Empty state unaffected; no API changes; TypeCheck passes: 0 errors; committed as 93f2edf
+
+Files Added (Session 52): none
+
+Files Modified (Session 52):
+- apps/web/src/app/(app)/workflows/[id]/history/page.tsx (completed count in summary line)
 - docs/SESSION_CONTEXT.md (this file)
 
 Completed (Session 51 — Aggregate cost summary on history page):

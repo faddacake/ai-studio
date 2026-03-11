@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-10
-Session: Completion Summary on History Page
+Session: Re-run Action on History Page Cards
 
 ---
 
@@ -319,6 +319,21 @@ Files Created (Session 24):
 Files Modified (Session 24):
 - packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 53 — Re-run action on history page cards):
+- [x] Added `useRouter` + `rerunning` + `rerunError` state to history page
+- [x] `handleRerun()`: POST /api/workflows/:id/runs → on success router.push(/workflows/:id); on failure sets rerunError
+- [x] Single `rerunning` boolean disables all Re-run buttons while one request is in flight
+- [x] Re-run button placed in right-side card div alongside duration/cost; shows "Starting…" while in flight
+- [x] `rerunError` banner shown above the run list; cleared on next attempt
+- [x] Does NOT replay the historical graph snapshot — starts a fresh run against the current saved workflow graph
+- [x] TypeCheck passes: 0 errors; committed as b22667c
+
+Files Added (Session 53): none
+
+Files Modified (Session 53):
+- apps/web/src/app/(app)/workflows/[id]/history/page.tsx (useRouter, rerunning/rerunError state, handleRerun, button + error banner)
 - docs/SESSION_CONTEXT.md (this file)
 
 Completed (Session 52 — Completion summary on history page):

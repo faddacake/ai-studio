@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-10
-Session: Run History Endpoint and Page
+Session: Run History Navigation Link in Editor Top Bar
 
 ---
 
@@ -319,6 +319,20 @@ Files Created (Session 24):
 Files Modified (Session 24):
 - packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 48 — Run history navigation link in editor top bar):
+- [x] Added "Run History" `<Link>` to canvas top bar after "← Workflows", routes to `/workflows/:id/history`
+- [x] Conditional on `meta` being loaded (no link shown until workflow is fetched)
+- [x] Same `text-xs text-neutral-500 hover:text-neutral-300` style as the existing back link
+- [x] Removed `mr-1` from "← Workflows" link (now both sit in the container's natural `gap-2`)
+- [x] Navigation triangle complete: list ↔ editor ↔ history
+- [x] TypeCheck passes: 0 errors; committed as a315123
+
+Files Added (Session 48): none
+
+Files Modified (Session 48):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx ("Run History" link added to top bar)
 - docs/SESSION_CONTEXT.md (this file)
 
 Completed (Session 47 — Run history endpoint and page):

@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-10
-Session: Run History Navigation Link in Editor Top Bar
+Session: History Link on Workflow List Cards
 
 ---
 
@@ -319,6 +319,20 @@ Files Created (Session 24):
 Files Modified (Session 24):
 - packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 49 — History link on workflow list cards):
+- [x] Added `<a href="/workflows/:id/history">History</a>` with `onClick={stopPropagation}` to each card footer
+- [x] Plain `<a>` used (not Next.js Link) to avoid nested `<a>` invalid HTML from the outer card `<Link>`
+- [x] History + dot separator + Delete grouped in a right-side `<span>` flex row in the normal state
+- [x] During delete-confirm state, History link is hidden — only the Yes/No confirm buttons show
+- [x] Navigation triangle now complete from all three surfaces: list ↔ editor ↔ history
+- [x] TypeCheck passes: 0 errors; committed as ef6b6d1
+
+Files Added (Session 49): none
+
+Files Modified (Session 49):
+- apps/web/src/app/(app)/workflows/page.tsx (History link in card footer action cluster)
 - docs/SESSION_CONTEXT.md (this file)
 
 Completed (Session 48 — Run history navigation link in editor top bar):

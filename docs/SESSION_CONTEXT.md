@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-10
-Session: Disabled-State Tooltip on Save Button
+Session: Rename Error Recovery (Optimistic Revert)
 
 ---
 
@@ -319,6 +319,35 @@ Files Created (Session 24):
 Files Modified (Session 24):
 - packages/shared/src/nodeDefinitions/capabilities.ts (added provider/seed params, expanded model enum, updated uiSchema)
 - packages/engine/src/capabilities/bestOfN.ts (honors params.seed as explicit base seed)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 41 — Rename error recovery):
+- [x] Captured `previous = meta.name` before optimistic `updateMetaName(trimmed)`
+- [x] Wrapped PATCH in try/catch; non-ok responses throw to enter catch branch
+- [x] On failure: `updateMetaName(previous)` silently reverts store to server-consistent state
+- [x] All existing paths unchanged (Escape, unchanged name, empty name skip PATCH entirely)
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 41): none
+
+Files Modified (Session 41):
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (previous capture + try/catch revert in handleCommitRename)
+- docs/SESSION_CONTEXT.md (this file)
+
+Completed (Session 40 — Inline workflow rename in canvas top bar):
+- [x] Added `updateMetaName(name)` action to Zustand store — updates `meta.name` optimistically in place
+- [x] Name display changed from static `<span>` to clickable `<button>` with `cursor-text` + hover highlight
+- [x] Click → inline `<input>` prefilled with current name, `autoFocus`, same position (no layout shift)
+- [x] Commit on blur or Enter (via blur trigger); cancel on Escape (restores display without store update)
+- [x] On commit: optimistic store update via `updateMetaName`, then PATCH `/api/workflows/:id` with `{ name }`
+- [x] Empty/whitespace or unchanged name skips the PATCH
+- [x] TypeCheck passes: 0 errors
+
+Files Added (Session 40): none
+
+Files Modified (Session 40):
+- apps/web/src/stores/workflowStore.ts (updateMetaName action)
+- apps/web/src/components/canvas/WorkflowCanvas.tsx (inline rename state, handlers, input/button toggle)
 - docs/SESSION_CONTEXT.md (this file)
 
 Completed (Session 39 — Disabled-state tooltip on Save button):

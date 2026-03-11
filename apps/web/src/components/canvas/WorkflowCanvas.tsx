@@ -61,8 +61,44 @@ function CanvasInner() {
     toggleSaveAsTemplate,
     saveGraph,
     runWorkflow,
+    updateMetaName,
     getWorkflowGraph,
   } = useWorkflowStore();
+
+  // ── Inline workflow rename ────────────────────────────────────────────────
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+
+  const handleStartRename = useCallback(() => {
+    setNameInput(meta?.name ?? "");
+    setEditingName(true);
+  }, [meta?.name]);
+
+  const handleCommitRename = useCallback(async () => {
+    const trimmed = nameInput.trim();
+    setEditingName(false);
+    if (!trimmed || !meta || trimmed === meta.name) return;
+    const previous = meta.name;
+    updateMetaName(trimmed);
+    try {
+      const res = await fetch(`/api/workflows/${meta.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (!res.ok) throw new Error(`PATCH failed: ${res.status}`);
+    } catch {
+      updateMetaName(previous);
+    }
+  }, [nameInput, meta, updateMetaName]);
+
+  const handleNameKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") { e.currentTarget.blur(); }
+      if (e.key === "Escape") { setEditingName(false); }
+    },
+    [],
+  );
 
   // Subscribe to SSE run events — updates debugSnapshot in the store,
   // which drives the status dots on CustomNode and the RunDebuggerPanel.
@@ -295,9 +331,27 @@ function CanvasInner() {
 
         {/* Top bar: workflow controls */}
         <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
-          <span className="mr-1 max-w-[200px] truncate text-xs font-medium text-neutral-400 select-none" title={meta?.name ?? "Untitled workflow"}>
-            {meta?.name ?? "Untitled workflow"}
-          </span>
+          {editingName ? (
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onBlur={handleCommitRename}
+              onKeyDown={handleNameKeyDown}
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus
+              className="mr-1 w-[180px] rounded border border-neutral-600 bg-neutral-800 px-1.5 py-0.5 text-xs font-medium text-neutral-200 outline-none focus:border-neutral-500"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={handleStartRename}
+              title="Click to rename"
+              className="mr-1 max-w-[200px] cursor-text truncate rounded px-1.5 py-0.5 text-xs font-medium text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300"
+            >
+              {meta?.name ?? "Untitled workflow"}
+            </button>
+          )}
           <button
             type="button"
             onClick={toggleTemplatePicker}

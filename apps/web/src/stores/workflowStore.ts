@@ -113,6 +113,7 @@ interface WorkflowState {
   setCurrentRunId: (runId: string | null) => void;
   saveGraph: () => Promise<void>;
   runWorkflow: () => Promise<void>;
+  updateMetaName: (name: string) => void;
   getWorkflowGraph: () => WorkflowGraph;
 }
 
@@ -245,6 +246,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     } finally {
       set({ saving: false });
     }
+  },
+
+  updateMetaName: (name) => {
+    set((s) => ({
+      meta: s.meta ? { ...s.meta, name } : s.meta,
+    }));
   },
 
   runWorkflow: async () => {

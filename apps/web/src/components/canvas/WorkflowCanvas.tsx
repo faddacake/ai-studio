@@ -334,11 +334,20 @@ function CanvasInner() {
         <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
           <Link
             href="/workflows"
-            className="mr-1 text-xs text-neutral-500 transition-colors hover:text-neutral-300"
+            className="text-xs text-neutral-500 transition-colors hover:text-neutral-300"
             title="Back to workflows"
           >
             ← Workflows
           </Link>
+          {meta && (
+            <Link
+              href={`/workflows/${meta.id}/history`}
+              className="mr-1 text-xs text-neutral-500 transition-colors hover:text-neutral-300"
+              title="View run history"
+            >
+              Run History
+            </Link>
+          )}
           {editingName ? (
             <input
               type="text"

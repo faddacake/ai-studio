@@ -1,14 +1,23 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-12
-Session: Provider Settings Page Built — Add, Update, Remove Provider Keys
+Session: Missing Provider Enforcement — Clear Failure Instead of Silent Mock Fallback
 
 ---
 
 ## 1. Current Focus
 
 Primary Task:
-Navigation audit complete. Sidebar now reflects actual route structure.
+Provider-backed workflow nodes now fail with a clear, actionable error when no API key is configured,
+instead of silently producing mock images.
+
+Completed (Session 62 — committed as `96d9f38`):
+- [x] Audited provider executor and BestOfN generator resolution for silent mock fallback
+- [x] Provider executor (runs/route.ts): throws `Provider "{id}" is not configured. Add your API key in Settings → Providers.` when no DB key and no FAL_API_KEY env var
+- [x] BestOfN resolveGenerator: same enforcement when user selects a real provider (provider !== "mock"); mock provider still works without any key
+- [x] `resolveProviderKey.ts` (previously untracked) now committed to repo
+- [x] Enforcement rule: DB key → FAL_API_KEY env → throw (no silent mock in real-provider paths); BestOfN mock path preserved intentionally
+- [x] Web typecheck clean; pre-existing engine integration test TS errors are unchanged (known issue)
 
 Completed (Session 61 — committed as `00e68da`):
 - [x] Built POST /api/providers/:id — upserts provider key, encrypts with AES-256-GCM

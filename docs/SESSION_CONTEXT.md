@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-12
-Session: Empty Workflow Overlay — Template Picker Button Wired
+Session: Template Picker Audited — Beginner Starter Template Added
 
 ---
 
@@ -9,6 +9,14 @@ Session: Empty Workflow Overlay — Template Picker Button Wired
 
 Primary Task:
 Navigation audit complete. Sidebar now reflects actual route structure.
+
+Completed (Session 59 — committed as `83986d4`):
+- [x] Audited TemplatePicker — fully real with tabs, search, import, availability dots
+- [x] Confirmed existing templates (full-pipeline, score-and-rank) use advanced capability nodes — no beginner entry
+- [x] Created templates/packs/image-gen-starter.json — "Prompt to Image" (2-node: prompt-template → image-generation)
+- [x] Registered imageGenStarter first in ensurePacksLoaded so it appears at top of Built-in tab
+- [x] Template uses only always-available node types (prompt-template local, image-generation requires provider)
+- [x] Loading flow, overlay dismiss, and PATCH save verified unchanged
 
 Completed (Session 58 — committed as `64f771b`):
 - [x] Converted the "Template" span in the empty-state overlay to a clickable button

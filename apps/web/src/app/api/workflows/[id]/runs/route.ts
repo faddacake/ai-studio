@@ -18,6 +18,8 @@ import {
   nodeExecutor,
   registerCapabilityExecutors,
   registerLocalExecutors,
+  createGenerator,
+  writeArtifact,
   type DispatchJob,
 } from "@aistudio/engine";
 // registerCapabilityExecutors / registerLocalExecutors register on the
@@ -29,6 +31,7 @@ import {
 } from "@aistudio/shared";
 import { getRunCoordinator } from "@/lib/runCoordinator";
 import { initializeNodeRegistry } from "@/lib/nodeRegistryInit";
+import { resolveProviderKey } from "@/lib/providers/resolveProviderKey";
 
 // ── Registry bootstrap (idempotent) ──────────────────────────────────────────
 
@@ -42,6 +45,60 @@ function ensureEngineBootstrapped(): void {
   if (!executorsRegistered) {
     registerCapabilityExecutors();
     registerLocalExecutors();
+
+    // Provider executor: resolves credentials from DB and delegates to the
+    // appropriate GeneratorAdapter.  Supports image-generation nodes.
+    nodeExecutor.setProviderExecutor(async (context, definition) => {
+      const providerId = context.providerId ?? definition.provider?.providerId ?? "fal";
+      const modelId = context.modelId ?? definition.provider?.modelId;
+
+      // __apiKey is injected in makeDispatch() after DB lookup; fall back to env.
+      // If neither is present the provider is not configured — fail clearly.
+      const apiKey =
+        (context.params.__apiKey as string | undefined) ??
+        process.env.FAL_API_KEY;
+
+      if (!apiKey) {
+        throw new Error(
+          `Provider "${providerId}" is not configured. ` +
+          `Add your API key in Settings → Providers to run this workflow.`,
+        );
+      }
+
+      const generator = createGenerator({ provider: providerId, apiKey, modelId });
+
+      const prompt =
+        (context.inputs.prompt_in as string | undefined) ??
+        (context.params.prompt as string | undefined) ??
+        "abstract art";
+      const width = Number(context.params.width ?? 1024);
+      const height = Number(context.params.height ?? 1024);
+      const seed =
+        context.params.seed !== undefined && Number(context.params.seed) !== -1
+          ? Number(context.params.seed)
+          : undefined;
+
+      const generated = await generator.generate({ prompt, width, height, seed, signal: context.signal });
+
+      const format = generated.mimeType.replace(/^image\//, "") === "jpeg" ? "jpeg" : "png";
+      const artifactRef = await writeArtifact({
+        buffer: generated.buffer,
+        outputDir: context.outputDir ?? "/tmp/aistudio-runs",
+        runId: context.runId,
+        nodeId: context.nodeId,
+        suffix: "generated",
+        format,
+        width: generated.width,
+        height: generated.height,
+      });
+
+      return {
+        outputs: { image_out: artifactRef },
+        cost: 0,
+        metadata: { provider: providerId, model: modelId, generatorKind: generator.kind },
+      };
+    });
+
     executorsRegistered = true;
   }
 }
@@ -68,11 +125,24 @@ function makeDispatch(runId: string, outputDir: string): DispatchJob {
     }
 
     try {
+      // Resolve provider API key from DB (DB config takes precedence over env).
+      // Falls back to null — the provider executor will use env var as fallback.
+      const resolvedProviderId = job.providerId;
+      const resolvedKey = resolvedProviderId
+        ? resolveProviderKey(resolvedProviderId)
+        : null;
+
       const context: NodeExecutionContext = {
         nodeId: job.nodeId,
         runId: job.runId,
         inputs: job.inputs,
-        params: job.params,
+        params: {
+          ...job.params,
+          // Inject node type so executor can look up the NodeDefinition.
+          __nodeType: job.nodeType,
+          // Inject resolved API key so provider executor doesn't need DB access.
+          ...(resolvedKey ? { __apiKey: resolvedKey } : {}),
+        },
         providerId: job.providerId,
         modelId: job.modelId,
         outputDir,

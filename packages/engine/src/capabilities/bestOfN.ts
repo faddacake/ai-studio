@@ -41,8 +41,9 @@ import {
  *
  * Resolution order:
  *   1. `context.params.__generator` — injected adapter (tests / advanced usage)
- *   2. `context.params.provider` + `context.params.model` + env key — factory
- *   3. Fallback: MockGeneratorAdapter
+ *   2. provider="mock" (or no provider) — MockGeneratorAdapter (intentional dev fallback)
+ *   3. real provider (e.g. "fal") + apiKey (DB or env) — real adapter
+ *   4. real provider + no apiKey — throws with actionable error
  */
 function resolveGenerator(context: NodeExecutionContext): GeneratorAdapter {
   const injected = context.params.__generator;
@@ -50,11 +51,22 @@ function resolveGenerator(context: NodeExecutionContext): GeneratorAdapter {
     return injected as GeneratorAdapter;
   }
 
-  return createGenerator({
-    provider: context.params.provider as string | undefined,
-    modelId:  context.params.model   as string | undefined,
-    // apiKey resolved from env inside createGenerator
-  });
+  const provider = (context.params.provider as string | undefined) ?? "fal";
+  const modelId  = context.params.model as string | undefined;
+  // __apiKey injected by the dispatch layer (DB config takes precedence over env var).
+  const apiKey   = (context.params.__apiKey as string | undefined) ?? process.env.FAL_API_KEY;
+
+  // When the user explicitly selects a real provider (anything other than "mock"),
+  // a configured API key is required.  Fail clearly so the user knows what to fix
+  // rather than silently producing mock images in a production-like run.
+  if (provider !== "mock" && !apiKey) {
+    throw new Error(
+      `Provider "${provider}" is not configured. ` +
+      `Add your API key in Settings → Providers to run this workflow.`,
+    );
+  }
+
+  return createGenerator({ provider, modelId, apiKey });
 }
 
 // ── Executor ───────────────────────────────────────────────────────────────

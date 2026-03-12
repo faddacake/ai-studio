@@ -303,6 +303,22 @@ function CanvasInner() {
 
       {/* Center: React Flow Canvas */}
       <div className="relative flex-1">
+        {/* Empty-state hint — visible only when the canvas has no nodes */}
+        {nodes.length === 0 && (
+          <div
+            className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+            aria-hidden="true"
+          >
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-900/80 px-8 py-6 text-center backdrop-blur-sm">
+              <p className="text-sm font-semibold text-neutral-300">No nodes yet</p>
+              <p className="text-xs leading-relaxed text-neutral-500">
+                Add nodes from the palette on the left,
+                <br />
+                or start from a <span className="text-neutral-400 font-medium">Template</span> above.
+              </p>
+            </div>
+          </div>
+        )}
         <ReactFlow
           nodes={nodes}
           edges={edges}

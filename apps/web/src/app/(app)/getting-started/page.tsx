@@ -29,9 +29,10 @@ const CHECKLIST: ChecklistItem[] = [
     linkLabel: "Add Provider",
     check: async () => {
       try {
-        // Check if any provider configs exist
-        const res = await fetch("/api/health");
-        return res.ok; // Placeholder — true check would query provider_configs
+        const res = await fetch("/api/providers");
+        if (!res.ok) return false;
+        const data = await res.json();
+        return Array.isArray(data) && data.length > 0;
       } catch {
         return false;
       }

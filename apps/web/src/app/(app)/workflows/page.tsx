@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface Workflow {
   id: string;
@@ -14,12 +15,14 @@ interface Workflow {
 }
 
 export default function WorkflowsPage() {
+  const router = useRouter();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -47,20 +50,27 @@ export default function WorkflowsPage() {
   }
 
   async function handleCreate() {
-    if (!newName.trim()) return;
+    if (!newName.trim() || creating) return;
     setCreating(true);
-    const res = await fetch("/api/workflows", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, description: newDesc }),
-    });
-    if (res.ok) {
-      setShowModal(false);
-      setNewName("");
-      setNewDesc("");
-      fetchWorkflows();
+    setCreateError(null);
+    try {
+      const res = await fetch("/api/workflows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName, description: newDesc }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        router.push(`/workflows/${data.id}`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setCreateError(data.message || "Failed to create workflow — please try again");
+        setCreating(false);
+      }
+    } catch {
+      setCreateError("Connection error — please try again");
+      setCreating(false);
     }
-    setCreating(false);
   }
 
   return (
@@ -224,7 +234,7 @@ export default function WorkflowsPage() {
             justifyContent: "center",
             zIndex: 50,
           }}
-          onClick={() => setShowModal(false)}
+          onClick={() => { setShowModal(false); setCreateError(null); }}
         >
           <div
             style={{
@@ -240,6 +250,15 @@ export default function WorkflowsPage() {
             <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--color-text-primary)", marginBottom: 20 }}>
               New Workflow
             </h2>
+            {createError && (
+              <div style={{
+                marginBottom: 16, padding: "10px 14px", borderRadius: 8,
+                backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
+                fontSize: 13, color: "var(--color-error)",
+              }}>
+                {createError}
+              </div>
+            )}
             <label style={{ display: "block", marginBottom: 12 }}>
               <span style={{ fontSize: 13, color: "var(--color-text-secondary)", display: "block", marginBottom: 6 }}>
                 Name
@@ -290,7 +309,7 @@ export default function WorkflowsPage() {
             </label>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => { setShowModal(false); setCreateError(null); }}
                 style={{
                   padding: "9px 18px",
                   backgroundColor: "transparent",

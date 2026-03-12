@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-12
-Session: Default Landing Page Audit — /workflows Already Implemented
+Session: New Workflow Creation Flow Wired to Editor Navigation
 
 ---
 
@@ -9,6 +9,14 @@ Session: Default Landing Page Audit — /workflows Already Implemented
 
 Primary Task:
 Navigation audit complete. Sidebar now reflects actual route structure.
+
+Completed (Session 56 — committed as `61242e0`):
+- [x] Identified that `handleCreate` in `workflows/page.tsx` was not navigating after creation
+- [x] API `POST /api/workflows` already returns `{ id, name }` with 201 — response was unused
+- [x] Added `useRouter` import; called `router.push(/workflows/${data.id})` on success
+- [x] Added `creating` guard at top of `handleCreate` to prevent duplicate submissions
+- [x] Added `createError` state; surfaces API/network failures inline in the modal
+- [x] Cleared `createError` on Cancel and backdrop close
 
 Completed (Session 55 — committed as `626a966`, no new commits needed):
 - [x] Audited full auth flow to verify `/workflows` is the default landing for authenticated users

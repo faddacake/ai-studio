@@ -314,7 +314,15 @@ function CanvasInner() {
               <p className="text-xs leading-relaxed text-neutral-500">
                 Add nodes from the palette on the left,
                 <br />
-                or start from a <span className="text-neutral-400 font-medium">Template</span> above.
+                or start from a{" "}
+                <button
+                  type="button"
+                  onClick={toggleTemplatePicker}
+                  className="pointer-events-auto font-medium text-neutral-300 underline underline-offset-2 hover:text-white"
+                >
+                  Template
+                </button>
+                .
               </p>
             </div>
           </div>

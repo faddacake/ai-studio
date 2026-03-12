@@ -16,12 +16,13 @@ import { rehydratePersistedPacks, persistPack } from "@/lib/templatePackStorage"
 // ── Load built-in packs + rehydrate persisted packs on first import ──
 
 import socialContentPipeline from "../../../../../templates/packs/social-content-pipeline.json";
+import imageGenStarter from "../../../../../templates/packs/image-gen-starter.json";
 
 let packsRegistered = false;
 function ensurePacksLoaded() {
   if (packsRegistered) return;
   packsRegistered = true;
-  registerBuiltInPacks([socialContentPipeline]);
+  registerBuiltInPacks([imageGenStarter, socialContentPipeline]);
   rehydratePersistedPacks();
 }
 

@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-12
-Session: Template Picker Audited — Beginner Starter Template Added
+Session: Provider Setup Check Corrected in Getting Started Checklist
 
 ---
 
@@ -9,6 +9,14 @@ Session: Template Picker Audited — Beginner Starter Template Added
 
 Primary Task:
 Navigation audit complete. Sidebar now reflects actual route structure.
+
+Completed (Session 60 — committed as `711a467`):
+- [x] Identified getting-started provider check was hitting /api/health (always 200) — always showed complete
+- [x] Confirmed providerConfigs table exists in DB schema with id, apiKeyEncrypted, iv, authTag, validatedAt
+- [x] Confirmed no /api/providers route existed yet
+- [x] Created GET /api/providers — returns [{id, validatedAt, createdAt}] from providerConfigs, no keys exposed
+- [x] Updated getting-started provider check to call /api/providers and test data.length > 0
+- [x] /api/health unchanged — still pure liveness/DB-ping
 
 Completed (Session 59 — committed as `83986d4`):
 - [x] Audited TemplatePicker — fully real with tabs, search, import, availability dots

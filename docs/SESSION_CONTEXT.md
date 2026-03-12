@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-12
-Session: New Workflow Editor Empty State and Save Flow Verified
+Session: Empty Workflow Overlay — Template Picker Button Wired
 
 ---
 
@@ -9,6 +9,13 @@ Session: New Workflow Editor Empty State and Save Flow Verified
 
 Primary Task:
 Navigation audit complete. Sidebar now reflects actual route structure.
+
+Completed (Session 58 — committed as `64f771b`):
+- [x] Converted the "Template" span in the empty-state overlay to a clickable button
+- [x] Button calls toggleTemplatePicker (same store action as the top-bar Templates button)
+- [x] Outer overlay keeps pointer-events-none; button uses pointer-events-auto (surgical opt-in)
+- [x] Canvas interaction is unaffected — clicking outside the button still hits ReactFlow normally
+- [x] Overlay still auto-hides on first node added (nodes.length guard unchanged)
 
 Completed (Session 57 — committed as `ecccbd0`):
 - [x] Verified editor page loads cleanly for new (empty-graph) workflows via GET /api/workflows/:id

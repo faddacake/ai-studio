@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-12
-Session: Provider Setup Check Corrected in Getting Started Checklist
+Session: Provider Settings Page Built — Add, Update, Remove Provider Keys
 
 ---
 
@@ -9,6 +9,16 @@ Session: Provider Setup Check Corrected in Getting Started Checklist
 
 Primary Task:
 Navigation audit complete. Sidebar now reflects actual route structure.
+
+Completed (Session 61 — committed as `00e68da`):
+- [x] Built POST /api/providers/:id — upserts provider key, encrypts with AES-256-GCM
+  salt stored as "${salt}:${ciphertext}" in api_key_encrypted; no migration needed
+  validatedAt reset on key change; known provider guard (fal, replicate, google)
+- [x] Built DELETE /api/providers/:id — removes provider_configs row
+- [x] Built settings/providers/page.tsx — replaces stub with full provider management UI
+  configured/not-configured status per provider, green border when configured
+  password input + Save; Update Key / Remove actions; docs links; no keys returned to client
+- [x] Encryption: AES-256-GCM via @aistudio/crypto encrypt(); PBKDF2 salt embedded in api_key_encrypted
 
 Completed (Session 60 — committed as `711a467`):
 - [x] Identified getting-started provider check was hitting /api/health (always 200) — always showed complete

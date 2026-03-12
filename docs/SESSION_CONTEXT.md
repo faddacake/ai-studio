@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-12
-Session: New Workflow Creation Flow Wired to Editor Navigation
+Session: New Workflow Editor Empty State and Save Flow Verified
 
 ---
 
@@ -9,6 +9,14 @@ Session: New Workflow Creation Flow Wired to Editor Navigation
 
 Primary Task:
 Navigation audit complete. Sidebar now reflects actual route structure.
+
+Completed (Session 57 — committed as `ecccbd0`):
+- [x] Verified editor page loads cleanly for new (empty-graph) workflows via GET /api/workflows/:id
+- [x] Verified saveGraph uses PATCH /api/workflows/:id — no duplicate creation possible
+- [x] Verified runWorkflow auto-saves via PATCH then POSTs to /runs (not /workflows)
+- [x] Identified gap: canvas showed no affordance when empty (just dark grid)
+- [x] Added pointer-events-none empty-state overlay in WorkflowCanvas.tsx (nodes.length === 0 guard)
+- [x] Overlay auto-hides when first node is added; points users to palette and Templates
 
 Completed (Session 56 — committed as `61242e0`):
 - [x] Identified that `handleCreate` in `workflows/page.tsx` was not navigating after creation

@@ -1,13 +1,24 @@
 # SESSION CONTEXT — AI Studio
 
-Date: 2026-03-10
-Session: Re-run Action on History Page Cards
+Date: 2026-03-12
+Session: Navigation Audit — Sidebar Routes Corrected
 
 ---
 
 ## 1. Current Focus
 
 Primary Task:
+Navigation audit complete. Sidebar now reflects actual route structure.
+
+Completed (Session 54 — committed as `626a966`):
+- [x] Audited all sidebar nav items against actual route files in `apps/web/src/app/(app)/`
+- [x] Confirmed all 7 original routes have real pages (no broken links)
+- [x] Removed `/canvas` from primary sidebar — it's a secondary surface, accessed from `/prompt` via "Open Canvas Editor" button
+- [x] Promoted `/workflows` to position 2 (primary feature of the app)
+- [x] Reordered: Get Started → Workflows → Generate → Prompt → Settings → Usage
+- [x] Removed unused `CanvasIcon` SVG component from AppShell.tsx
+
+Previous Task (Primary Task for prior sessions):
 Registry-driven node platform — React Flow canvas integration wiring all UI components together.
 
 Completed (Session 1 — committed as `cec4af3`):

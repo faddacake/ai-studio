@@ -8,6 +8,7 @@ interface Workflow {
   id: string;
   name: string;
   description: string;
+  tags: string[];
   lastRunStatus: string | null;
   lastRunAt: string | null;
   updatedAt: string;
@@ -32,6 +33,9 @@ export default function WorkflowsPage() {
   const [renameError, setRenameError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
+  const [tagInput, setTagInput] = useState("");
+  const [tagSaving, setTagSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
@@ -183,12 +187,46 @@ export default function WorkflowsPage() {
     }
   }
 
+  function startEditTags(id: string, current: string[]) {
+    setEditingTagsId(id);
+    setTagInput(current.join(", "));
+  }
+
+  function cancelEditTags() {
+    setEditingTagsId(null);
+    setTagInput("");
+  }
+
+  async function commitTags(id: string) {
+    const tags = tagInput
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    setTagSaving(true);
+    try {
+      const res = await fetch(`/api/workflows/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      setWorkflows((prev) => prev.map((w) => w.id === id ? { ...w, tags } : w));
+      setEditingTagsId(null);
+      setTagInput("");
+    } catch {
+      // leave edit open so user can retry
+    } finally {
+      setTagSaving(false);
+    }
+  }
+
   const q = search.trim().toLowerCase();
   const filtered = q
     ? workflows.filter(
         (w) =>
           w.name.toLowerCase().includes(q) ||
-          (w.description ?? "").toLowerCase().includes(q),
+          (w.description ?? "").toLowerCase().includes(q) ||
+          (w.tags ?? []).some((t) => t.toLowerCase().includes(q)),
       )
     : workflows;
 
@@ -397,6 +435,72 @@ export default function WorkflowsPage() {
                   {w.description}
                 </p>
               )}
+              {/* Tags row */}
+              {editingTagsId === w.id ? (
+                <span
+                  style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                >
+                  <input
+                    // eslint-disable-next-line jsx-a11y/no-autofocus
+                    autoFocus
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); commitTags(w.id); }
+                      if (e.key === "Escape") { e.preventDefault(); cancelEditTags(); }
+                    }}
+                    disabled={tagSaving}
+                    placeholder="social, video, draft"
+                    style={{
+                      padding: "3px 8px",
+                      backgroundColor: "var(--color-bg-primary)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: 6,
+                      color: "var(--color-text-primary)",
+                      fontSize: 12,
+                      outline: "none",
+                      minWidth: 180,
+                    }}
+                  />
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); commitTags(w.id); }}
+                    disabled={tagSaving}
+                    style={{ fontSize: 11, fontWeight: 600, color: "var(--color-accent)", background: "none", border: "none", cursor: tagSaving ? "default" : "pointer", padding: "2px 4px" }}
+                  >
+                    {tagSaving ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); cancelEditTags(); }}
+                    disabled={tagSaving}
+                    style={{ fontSize: 11, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 4px" }}
+                  >
+                    Cancel
+                  </button>
+                </span>
+              ) : (w.tags ?? []).length > 0 ? (
+                <div
+                  style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); startEditTags(w.id, w.tags ?? []); }}
+                >
+                  {(w.tags ?? []).map((tag) => (
+                    <span
+                      key={tag}
+                      style={{
+                        fontSize: 11,
+                        padding: "2px 7px",
+                        borderRadius: 4,
+                        backgroundColor: "var(--color-accent)18",
+                        color: "var(--color-accent)",
+                        border: "1px solid var(--color-accent)30",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               <LastRunIndicator status={w.lastRunStatus} lastRunAt={w.lastRunAt} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
                 <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0 }}>
@@ -433,6 +537,13 @@ export default function WorkflowsPage() {
                       style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
                     >
                       Rename
+                    </button>
+                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); startEditTags(w.id, w.tags ?? []); }}
+                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+                    >
+                      Tags
                     </button>
                     <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
                     <button

@@ -56,6 +56,11 @@ export async function PATCH(
   if (body.name !== undefined) updates.name = body.name;
   if (body.description !== undefined) updates.description = body.description;
   if (body.graph !== undefined) updates.graph = JSON.stringify(body.graph);
+  if (Array.isArray(body.tags)) {
+    updates.tags = JSON.stringify(
+      body.tags.filter((t: unknown) => typeof t === "string" && t.trim()).map((t: string) => t.trim()),
+    );
+  }
 
   db.update(schema.workflows)
     .set(updates)

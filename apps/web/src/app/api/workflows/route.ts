@@ -4,6 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { getDb, schema, sql } from "@aistudio/db";
 
+function parseTags(raw: string | null | undefined): string[] {
+  try { return JSON.parse(raw ?? "[]") ?? []; } catch { return []; }
+}
+
 // GET /api/workflows — list all non-deleted workflows
 export async function GET() {
   const db = getDb();
@@ -12,6 +16,7 @@ export async function GET() {
       id: schema.workflows.id,
       name: schema.workflows.name,
       description: schema.workflows.description,
+      tags: schema.workflows.tags,
       lastRunStatus: schema.workflows.lastRunStatus,
       lastRunAt: schema.workflows.lastRunAt,
       updatedAt: schema.workflows.updatedAt,
@@ -21,7 +26,11 @@ export async function GET() {
     .where(sql`${schema.workflows.deletedAt} IS NULL`)
     .all();
 
-  return NextResponse.json(rows);
+  const parsed = rows.map((r) => ({
+    ...r,
+    tags: parseTags(r.tags),
+  }));
+  return NextResponse.json(parsed);
 }
 
 // POST /api/workflows — create a new workflow

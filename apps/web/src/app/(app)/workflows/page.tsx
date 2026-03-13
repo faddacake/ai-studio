@@ -406,6 +406,24 @@ export default function WorkflowsPage() {
       return b.updatedAt.localeCompare(a.updatedAt);
     });
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+        e.preventDefault();
+        setSelectedIds(new Set(filtered.map((w) => w.id)));
+      }
+      if (e.key === "Escape") {
+        setSelectedIds(new Set());
+        setBulkDeleteConfirm(false);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [filtered]);
+
   return (
     <div style={{ padding: 32 }}>
       <div

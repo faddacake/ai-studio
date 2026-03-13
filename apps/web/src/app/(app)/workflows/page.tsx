@@ -31,6 +31,9 @@ export default function WorkflowsPage() {
   const [renameSaving, setRenameSaving] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [exportingId, setExportingId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const fetchWorkflows = useCallback(async () => {
     const res = await fetch("/api/workflows");
@@ -131,6 +134,55 @@ export default function WorkflowsPage() {
     }
   }
 
+  async function handleExport(id: string, name: string) {
+    setExportingId(id);
+    try {
+      const res = await fetch(`/api/workflows/${id}/export`);
+      if (!res.ok) throw new Error(`${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const match = cd.match(/filename="([^"]+)"/);
+      a.download = match?.[1] ?? `${name}.workflow.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExportingId(null);
+    }
+  }
+
+  async function handleImport(file: File) {
+    setImporting(true);
+    setImportError(null);
+    try {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await file.text());
+      } catch {
+        setImportError("File is not valid JSON");
+        return;
+      }
+      const res = await fetch("/api/workflows/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        router.push(`/workflows/${data.id}`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setImportError(data.message || "Import failed — please try again");
+      }
+    } catch {
+      setImportError("Connection error — please try again");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const q = search.trim().toLowerCase();
   const filtered = q
     ? workflows.filter(
@@ -153,21 +205,49 @@ export default function WorkflowsPage() {
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--color-text-primary)" }}>
           Workflows
         </h1>
-        <button
-          onClick={() => setShowModal(true)}
-          style={{
-            padding: "10px 20px",
-            backgroundColor: "var(--color-accent)",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          + New Workflow
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <label
+            style={{
+              padding: "10px 16px",
+              backgroundColor: "transparent",
+              color: "var(--color-text-secondary)",
+              border: "1px solid var(--color-border)",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: importing ? "default" : "pointer",
+              opacity: importing ? 0.6 : 1,
+            }}
+          >
+            {importing ? "Importing…" : "Import"}
+            <input
+              type="file"
+              accept=".json"
+              style={{ display: "none" }}
+              disabled={importing}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) handleImport(file);
+              }}
+            />
+          </label>
+          <button
+            onClick={() => setShowModal(true)}
+            style={{
+              padding: "10px 20px",
+              backgroundColor: "var(--color-accent)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            + New Workflow
+          </button>
+        </div>
       </div>
 
       {workflows.length > 0 && (
@@ -192,16 +272,16 @@ export default function WorkflowsPage() {
         />
       )}
 
-      {deleteError && (
+      {(deleteError || importError) && (
         <div style={{
           marginBottom: 16, padding: "10px 14px", borderRadius: 8,
           backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
           fontSize: 13, color: "var(--color-error)",
           display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
-          {deleteError}
+          {importError || deleteError}
           <button
-            onClick={() => setDeleteError(null)}
+            onClick={() => { setDeleteError(null); setImportError(null); }}
             style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-error)", fontSize: 16, lineHeight: 1 }}
           >
             ×
@@ -361,6 +441,14 @@ export default function WorkflowsPage() {
                       style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: duplicatingId === w.id ? "default" : "pointer", padding: "2px 6px" }}
                     >
                       {duplicatingId === w.id ? "Copying…" : "Duplicate"}
+                    </button>
+                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleExport(w.id, w.name); }}
+                      disabled={exportingId === w.id}
+                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: exportingId === w.id ? "default" : "pointer", padding: "2px 6px" }}
+                    >
+                      {exportingId === w.id ? "Exporting…" : "Export"}
                     </button>
                     <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
                     <button

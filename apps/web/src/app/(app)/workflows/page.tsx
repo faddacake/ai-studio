@@ -762,6 +762,9 @@ export default function WorkflowsPage() {
                 </button>
               </>
             )}
+            <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--color-text-muted)", whiteSpace: "nowrap", paddingLeft: 8 }}>
+              ⌘A · Esc
+            </span>
           </div>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

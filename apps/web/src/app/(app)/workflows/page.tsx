@@ -636,9 +636,24 @@ export default function WorkflowsPage() {
           <p style={{ fontSize: 16, color: "var(--color-text-secondary)", marginBottom: 4 }}>
             No workflows yet.
           </p>
-          <p style={{ fontSize: 14, color: "var(--color-text-muted)" }}>
+          <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 20 }}>
             Create your first one to get started.
           </p>
+          <button
+            onClick={() => setShowModal(true)}
+            style={{
+              padding: "10px 22px",
+              backgroundColor: "var(--color-accent)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            + New Workflow
+          </button>
         </div>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: "64px 20px" }}>

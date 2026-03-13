@@ -25,7 +25,7 @@ import { CustomNode } from "./CustomNode";
 import { ConfirmReplaceDialog } from "./ConfirmReplaceDialog";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { InspectorPanel } from "@/components/inspector";
-import { RunDebuggerPanel } from "@/components/debugger";
+import { RunDebuggerPanel, RunOutputsPanel } from "@/components/debugger";
 
 // ── Node types map (stable reference) ──
 
@@ -65,6 +65,9 @@ function CanvasInner() {
     updateMetaName,
     getWorkflowGraph,
   } = useWorkflowStore();
+
+  // ── Debug panel tab ───────────────────────────────────────────────────────
+  const [activeDebugTab, setActiveDebugTab] = useState<"nodes" | "outputs">("nodes");
 
   // ── Inline workflow rename ────────────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
@@ -490,19 +493,43 @@ function CanvasInner() {
 
       {/* Bottom: Debugger Panel (slides up) */}
       {debuggerOpen && (
-        <div className="absolute bottom-0 left-0 right-0 z-20 max-h-[40vh] overflow-y-auto border-t border-neutral-800 bg-neutral-950">
-          {debugSnapshot ? (
-            <RunDebuggerPanel
-              snapshot={debugSnapshot}
-              onNodeClick={(nodeId) => selectNode(nodeId)}
+        <div className="absolute bottom-0 left-0 right-0 z-20 flex max-h-[40vh] flex-col border-t border-neutral-800 bg-neutral-950">
+          {/* Tab bar */}
+          <div className="flex shrink-0 items-center gap-0.5 border-b border-neutral-800 px-3 pt-1.5 pb-0">
+            <DebugTabButton
+              label="Nodes"
+              active={activeDebugTab === "nodes"}
+              onClick={() => setActiveDebugTab("nodes")}
             />
-          ) : (
-            <div className="px-4 py-4 text-xs text-neutral-500">
-              {currentRunId
-                ? "Connecting to run…"
-                : "No run yet — click \u201cRun Workflow\u201d to start."}
-            </div>
-          )}
+            <DebugTabButton
+              label="Outputs"
+              active={activeDebugTab === "outputs"}
+              onClick={() => setActiveDebugTab("outputs")}
+            />
+          </div>
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto">
+            {activeDebugTab === "nodes" ? (
+              debugSnapshot ? (
+                <RunDebuggerPanel
+                  snapshot={debugSnapshot}
+                  onNodeClick={(nodeId) => selectNode(nodeId)}
+                />
+              ) : (
+                <div className="px-4 py-4 text-xs text-neutral-500">
+                  {currentRunId
+                    ? "Connecting to run\u2026"
+                    : "No run yet \u2014 click \u201cRun Workflow\u201d to start."}
+                </div>
+              )
+            ) : (
+              <RunOutputsPanel
+                workflowId={meta?.id ?? ""}
+                runId={currentRunId}
+                snapshot={debugSnapshot}
+              />
+            )}
+          </div>
         </div>
       )}
 
@@ -538,6 +565,32 @@ function CanvasInner() {
         onConfirm={handleConfirmReplace}
       />
     </div>
+  );
+}
+
+// ── Debug tab button ──
+
+function DebugTabButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-t px-3 py-1.5 text-[11px] font-medium transition-colors ${
+        active
+          ? "border-b-2 border-blue-500 text-neutral-100"
+          : "text-neutral-500 hover:text-neutral-300"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 

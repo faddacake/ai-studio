@@ -214,6 +214,38 @@ function CanvasInner() {
     if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current);
   }, []);
 
+  // Refresh last-run status when the editor regains focus / visibility,
+  // so status stays current after runs triggered in other tabs/sessions.
+  const lastRefreshRef = useRef<number>(0);
+  useEffect(() => {
+    function refresh() {
+      if (!meta?.id) return;
+      const now = Date.now();
+      if (now - lastRefreshRef.current < 500) return; // debounce double-fire
+      lastRefreshRef.current = now;
+      fetch(`/api/workflows/${meta.id}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((row: { lastRunStatus?: string | null; lastRunAt?: string | null } | null) => {
+          if (!row?.lastRunStatus) return;
+          const current = useWorkflowStore.getState().meta;
+          if (
+            current &&
+            (row.lastRunStatus !== current.lastRunStatus || row.lastRunAt !== current.lastRunAt)
+          ) {
+            updateMetaRunStatus(row.lastRunStatus, row.lastRunAt ?? new Date().toISOString());
+          }
+        })
+        .catch(() => { /* silent — don't disrupt the editor */ });
+    }
+    function onVisibility() { if (document.visibilityState === "visible") refresh(); }
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [meta?.id, updateMetaRunStatus]);
+
   const { screenToFlowPosition } = useReactFlow();
 
   // Pending template load — set when dirty=true and user picks a template.

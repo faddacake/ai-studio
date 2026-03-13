@@ -40,6 +40,9 @@ export default function WorkflowsPage() {
   const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState("");
   const [tagSaving, setTagSaving] = useState(false);
+  const [editingDescId, setEditingDescId] = useState<string | null>(null);
+  const [descInput, setDescInput] = useState("");
+  const [descSaving, setDescSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [activeTag, setActiveTag] = useState<string | null>(() => {
@@ -225,6 +228,36 @@ export default function WorkflowsPage() {
       setImportError("Connection error — please try again");
     } finally {
       setImporting(false);
+    }
+  }
+
+  function startEditDesc(id: string, current: string) {
+    setEditingDescId(id);
+    setDescInput(current);
+  }
+
+  function cancelEditDesc() {
+    setEditingDescId(null);
+    setDescInput("");
+  }
+
+  async function commitDesc(id: string) {
+    const trimmed = descInput.trim();
+    setDescSaving(true);
+    try {
+      const res = await fetch(`/api/workflows/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: trimmed }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      setWorkflows((prev) => prev.map((w) => w.id === id ? { ...w, description: trimmed } : w));
+      setEditingDescId(null);
+      setDescInput("");
+    } catch {
+      // leave edit open so user can retry
+    } finally {
+      setDescSaving(false);
     }
   }
 
@@ -592,11 +625,55 @@ export default function WorkflowsPage() {
                   <StatusBadge status={w.lastRunStatus} />
                 )}
               </div>
-              {w.description && (
+              {editingDescId === w.id ? (
+                <span
+                  style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                >
+                  <textarea
+                    // eslint-disable-next-line jsx-a11y/no-autofocus
+                    autoFocus
+                    value={descInput}
+                    onChange={(e) => setDescInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") { e.preventDefault(); cancelEditDesc(); }
+                      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); commitDesc(w.id); }
+                    }}
+                    disabled={descSaving}
+                    rows={3}
+                    placeholder="Add a description…"
+                    style={{
+                      width: "100%", padding: "6px 8px",
+                      backgroundColor: "var(--color-bg-primary)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: 6, color: "var(--color-text-primary)",
+                      fontSize: 13, resize: "vertical", outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); commitDesc(w.id); }}
+                      disabled={descSaving}
+                      style={{ fontSize: 12, fontWeight: 600, color: "var(--color-accent)", background: "none", border: "none", cursor: descSaving ? "default" : "pointer", padding: "2px 4px" }}
+                    >
+                      {descSaving ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); cancelEditDesc(); }}
+                      disabled={descSaving}
+                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 4px" }}
+                    >
+                      Cancel
+                    </button>
+                    <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>⌘↵ to save · Esc to cancel</span>
+                  </span>
+                </span>
+              ) : w.description ? (
                 <p style={{ fontSize: 13, color: "var(--color-text-muted)", marginTop: 4 }}>
                   {w.description}
                 </p>
-              )}
+              ) : null}
               {/* Tags row */}
               {editingTagsId === w.id ? (
                 <span
@@ -697,6 +774,13 @@ export default function WorkflowsPage() {
                       style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
                     >
                       Rename
+                    </button>
+                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); startEditDesc(w.id, w.description ?? ""); }}
+                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+                    >
+                      Description
                     </button>
                     <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
                     <button

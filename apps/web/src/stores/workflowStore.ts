@@ -70,6 +70,8 @@ interface WorkflowMeta {
   id: string;
   name: string;
   description: string;
+  lastRunStatus: string | null;
+  lastRunAt: string | null;
 }
 
 interface HistorySnapshot {
@@ -123,6 +125,7 @@ interface WorkflowState {
   saveGraph: () => Promise<void>;
   runWorkflow: () => Promise<void>;
   updateMetaName: (name: string) => void;
+  updateMetaRunStatus: (status: string, runAt: string) => void;
   getWorkflowGraph: () => WorkflowGraph;
   pushHistory: () => void;
   undo: () => void;
@@ -316,6 +319,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   updateMetaName: (name) => {
     set((s) => ({
       meta: s.meta ? { ...s.meta, name } : s.meta,
+    }));
+  },
+
+  updateMetaRunStatus: (status, runAt) => {
+    set((s) => ({
+      meta: s.meta ? { ...s.meta, lastRunStatus: status, lastRunAt: runAt } : s.meta,
     }));
   },
 

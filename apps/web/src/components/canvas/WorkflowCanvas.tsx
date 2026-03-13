@@ -31,6 +31,27 @@ import { RunDebuggerPanel, RunOutputsPanel } from "@/components/debugger";
 
 const nodeTypes: NodeTypes = { custom: CustomNode };
 
+// ── Run-status dot colors (mirrors list-page RUN_DOT_COLOR) ──
+
+const RUN_STATUS_COLOR: Record<string, string> = {
+  completed:       "#4ade80",
+  running:         "#60a5fa",
+  failed:          "#f87171",
+  partial_failure: "#f87171",
+  cancelled:       "#737373",
+  budget_exceeded: "#facc15",
+  pending:         "#facc15",
+};
+
+function formatRunTime(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1)  return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 // ── Inner canvas (needs ReactFlowProvider ancestor) ──
 
 function CanvasInner() {
@@ -69,6 +90,7 @@ function CanvasInner() {
     redo,
     historyStack,
     redoStack,
+    updateMetaRunStatus,
   } = useWorkflowStore();
 
   const canUndo = historyStack.length > 0;
@@ -160,7 +182,7 @@ function CanvasInner() {
     budget_exceeded: { label: "— Budget Exceeded",  colorClass: "border-yellow-500 bg-yellow-500/10 text-yellow-400" },
   };
 
-  // Detect transition to terminal status → show badge
+  // Detect transition to terminal status → show badge + update meta run status
   useEffect(() => {
     const status = debugSnapshot?.status;
     if (!status) return;
@@ -168,6 +190,7 @@ function CanvasInner() {
     if (!badge) return;
 
     setRunBadge(badge);
+    updateMetaRunStatus(status, new Date().toISOString());
     if (badgeTimerRef.current) clearTimeout(badgeTimerRef.current);
     badgeTimerRef.current = setTimeout(() => {
       setRunBadge(null);
@@ -289,7 +312,7 @@ function CanvasInner() {
       if (meta) {
         loadWorkflow(meta, graph);
       } else {
-        loadWorkflow({ id: crypto.randomUUID(), name, description: "" }, graph);
+        loadWorkflow({ id: crypto.randomUUID(), name, description: "", lastRunStatus: null, lastRunAt: null }, graph);
       }
     },
     [loadWorkflow],
@@ -447,6 +470,28 @@ function CanvasInner() {
             >
               {meta?.name ?? "Untitled workflow"}
             </button>
+          )}
+          {meta && (
+            <span
+              className="flex items-center gap-1.5 text-xs text-neutral-500 select-none"
+              title={meta.lastRunStatus
+                ? `Last run: ${meta.lastRunStatus.replace(/_/g, " ")}${meta.lastRunAt ? ` · ${formatRunTime(meta.lastRunAt)}` : ""}`
+                : "No runs yet"}
+            >
+              <span
+                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                style={{
+                  backgroundColor: meta.lastRunStatus
+                    ? (RUN_STATUS_COLOR[meta.lastRunStatus] ?? "#737373")
+                    : "#404040",
+                }}
+              />
+              <span className="capitalize">
+                {meta.lastRunStatus
+                  ? `${meta.lastRunStatus.replace(/_/g, " ")}${meta.lastRunAt ? ` · ${formatRunTime(meta.lastRunAt)}` : ""}`
+                  : "No runs yet"}
+              </span>
+            </span>
           )}
           <button
             type="button"

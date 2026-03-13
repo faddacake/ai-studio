@@ -10,6 +10,8 @@ interface WorkflowRow {
   name: string;
   description: string;
   graph: string;
+  lastRunStatus: string | null;
+  lastRunAt: string | null;
 }
 
 export default function WorkflowEditorPage({
@@ -35,7 +37,9 @@ export default function WorkflowEditorPage({
         const row: WorkflowRow = await res.json();
         const graph: WorkflowGraph = JSON.parse(row.graph);
         loadWorkflow(
-          { id: row.id, name: row.name, description: row.description },
+          { id: row.id, name: row.name, description: row.description,
+            lastRunStatus: row.lastRunStatus ?? null,
+            lastRunAt: row.lastRunAt ?? null },
           graph,
         );
       } catch {

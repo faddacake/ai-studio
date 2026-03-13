@@ -39,6 +39,7 @@ export default function WorkflowsPage() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"updated" | "lastRun" | "name">("updated");
 
   const fetchWorkflows = useCallback(async () => {
     const res = await fetch("/api/workflows");
@@ -226,14 +227,27 @@ export default function WorkflowsPage() {
   ).sort();
 
   const q = search.trim().toLowerCase();
-  const filtered = workflows.filter((w) => {
-    const matchesSearch = !q ||
-      w.name.toLowerCase().includes(q) ||
-      (w.description ?? "").toLowerCase().includes(q) ||
-      (w.tags ?? []).some((t) => t.toLowerCase().includes(q));
-    const matchesTag = activeTag === null || (w.tags ?? []).includes(activeTag);
-    return matchesSearch && matchesTag;
-  });
+  const filtered = workflows
+    .filter((w) => {
+      const matchesSearch = !q ||
+        w.name.toLowerCase().includes(q) ||
+        (w.description ?? "").toLowerCase().includes(q) ||
+        (w.tags ?? []).some((t) => t.toLowerCase().includes(q));
+      const matchesTag = activeTag === null || (w.tags ?? []).includes(activeTag);
+      return matchesSearch && matchesTag;
+    })
+    .slice()
+    .sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+      if (sortBy === "lastRun") {
+        if (!a.lastRunAt && !b.lastRunAt) return 0;
+        if (!a.lastRunAt) return 1;
+        if (!b.lastRunAt) return -1;
+        return b.lastRunAt.localeCompare(a.lastRunAt);
+      }
+      // default: updated
+      return b.updatedAt.localeCompare(a.updatedAt);
+    });
 
   return (
     <div style={{ padding: 32 }}>
@@ -294,25 +308,47 @@ export default function WorkflowsPage() {
       </div>
 
       {workflows.length > 0 && (
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search workflows…"
-          style={{
-            width: "100%",
-            maxWidth: 360,
-            padding: "8px 12px",
-            marginBottom: allTags.length > 0 ? 12 : 20,
-            backgroundColor: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
-            borderRadius: 8,
-            color: "var(--color-text-primary)",
-            fontSize: 14,
-            outline: "none",
-            boxSizing: "border-box",
-          }}
-        />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: allTags.length > 0 ? 12 : 20 }}>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search workflows…"
+            style={{
+              flex: "0 0 auto",
+              width: 280,
+              padding: "8px 12px",
+              backgroundColor: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+              borderRadius: 8,
+              color: "var(--color-text-primary)",
+              fontSize: 14,
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
+            Sort by
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "updated" | "lastRun" | "name")}
+              style={{
+                padding: "6px 10px",
+                backgroundColor: "var(--color-surface)",
+                border: "1px solid var(--color-border)",
+                borderRadius: 8,
+                color: "var(--color-text-primary)",
+                fontSize: 13,
+                outline: "none",
+                cursor: "pointer",
+              }}
+            >
+              <option value="updated">Last updated</option>
+              <option value="lastRun">Last run</option>
+              <option value="name">Name A–Z</option>
+            </select>
+          </label>
+        </div>
       )}
 
       {allTags.length > 0 && (

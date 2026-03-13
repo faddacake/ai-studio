@@ -63,7 +63,12 @@ export default function WorkflowsPage() {
   });
 
   const [copied, setCopied] = useState(false);
-  const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [pinnedOnly, setPinnedOnly] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const p = new URLSearchParams(window.location.search);
+    if (p.has("pinned")) return p.get("pinned") === "1";
+    return localStorage.getItem("aiStudio.workflow.pinned") === "1";
+  });
   const [pinningId, setPinningId] = useState<string | null>(null);
 
   async function handleTogglePin(id: string, current: boolean) {
@@ -104,14 +109,17 @@ export default function WorkflowsPage() {
     if (activeTag) localStorage.setItem("aiStudio.workflow.tag", activeTag);
     else localStorage.removeItem("aiStudio.workflow.tag");
     localStorage.setItem("aiStudio.workflow.sort", sortBy);
+    if (pinnedOnly) localStorage.setItem("aiStudio.workflow.pinned", "1");
+    else localStorage.removeItem("aiStudio.workflow.pinned");
     // Sync URL (replace so search typing doesn't pollute history)
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (activeTag) params.set("tag", activeTag);
     if (sortBy !== "updated") params.set("sort", sortBy);
+    if (pinnedOnly) params.set("pinned", "1");
     const qs = params.toString();
     router.replace(qs ? `/workflows?${qs}` : "/workflows");
-  }, [search, activeTag, sortBy, router]);
+  }, [search, activeTag, sortBy, pinnedOnly, router]);
 
   function startRename(id: string, currentName: string) {
     setRenamingId(id);

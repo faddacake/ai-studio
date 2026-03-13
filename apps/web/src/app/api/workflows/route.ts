@@ -37,7 +37,7 @@ export async function GET() {
 // POST /api/workflows — create a new workflow
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { name, description } = body;
+  const { name, description, graph } = body;
 
   if (!name || typeof name !== "string" || name.trim().length === 0) {
     return NextResponse.json(
@@ -49,11 +49,9 @@ export async function POST(request: NextRequest) {
   const now = new Date().toISOString();
   const id = randomUUID();
 
-  const emptyGraph = JSON.stringify({
-    version: 1,
-    nodes: [],
-    edges: [],
-  });
+  const emptyGraph = JSON.stringify({ version: 1, nodes: [], edges: [] });
+  const graphStr =
+    graph && typeof graph === "object" ? JSON.stringify(graph) : emptyGraph;
 
   const db = getDb();
   db.insert(schema.workflows)
@@ -61,7 +59,7 @@ export async function POST(request: NextRequest) {
       id,
       name: name.trim(),
       description: description?.trim() || "",
-      graph: emptyGraph,
+      graph: graphStr,
       createdAt: now,
       updatedAt: now,
     })

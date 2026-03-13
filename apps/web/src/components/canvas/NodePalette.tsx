@@ -6,9 +6,20 @@ import {
   NodeCategory,
   type NodeDefinition,
   type WorkflowNode,
+  type WorkflowGraph,
 } from "@aistudio/shared";
 import { initializeNodeRegistry } from "@/lib/nodeRegistryInit";
 import { createWorkflowNode } from "./createWorkflowNode";
+
+// ── DB-backed saved template type ──
+
+interface DbTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  graph: WorkflowGraph;
+  createdAt: string;
+}
 
 // ── Category display metadata ──
 
@@ -54,6 +65,10 @@ interface PaletteGroup {
 export interface NodePaletteProps {
   /** Called when the user clicks a node to add it to the canvas. */
   onAddNode: (node: WorkflowNode) => void;
+  /** Called when the user applies a saved template from the sidebar. */
+  onApplyTemplate?: (graph: WorkflowGraph, name: string) => void;
+  /** Increment to trigger a template-list re-fetch without remounting. */
+  templateRefreshKey?: number;
   /** Default canvas position for new nodes (centered in viewport). */
   defaultPosition?: { x: number; y: number };
   /** Whether the palette panel is open. */
@@ -66,15 +81,33 @@ export interface NodePaletteProps {
 
 export function NodePalette({
   onAddNode,
+  onApplyTemplate,
+  templateRefreshKey = 0,
   defaultPosition = { x: 100, y: 100 },
   open = true,
   onToggle,
 }: NodePaletteProps) {
   const [filter, setFilter] = useState("");
+  const [dbTemplates, setDbTemplates] = useState<DbTemplate[]>([]);
 
   // Ensure registry is populated on first render
   useEffect(() => {
     initializeNodeRegistry();
+  }, []);
+
+  // Fetch user-saved templates from DB; re-runs when templateRefreshKey changes
+  useEffect(() => {
+    if (!onApplyTemplate) return;
+    fetch("/api/templates")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: DbTemplate[]) => setDbTemplates(data))
+      .catch(() => {/* non-fatal */});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onApplyTemplate, templateRefreshKey]);
+
+  const handleDeleteDbTemplate = useCallback(async (id: string) => {
+    await fetch(`/api/templates/${id}`, { method: "DELETE" });
+    setDbTemplates((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   // Get all available definitions, filtered and grouped
@@ -198,6 +231,15 @@ export function NodePalette({
           />
         ))}
       </div>
+
+      {/* Saved templates section */}
+      {onApplyTemplate && dbTemplates.length > 0 && (
+        <SavedTemplatesSection
+          templates={dbTemplates}
+          onApply={onApplyTemplate}
+          onDelete={handleDeleteDbTemplate}
+        />
+      )}
     </aside>
   );
 }
@@ -299,6 +341,100 @@ function PaletteNodeItem({
   );
 }
 
+// ── Saved templates section ──
+
+function SavedTemplatesSection({
+  templates,
+  onApply,
+  onDelete,
+}: {
+  templates: DbTemplate[];
+  onApply: (graph: WorkflowGraph, name: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [collapsed, setCollapsed] = useState(true);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  return (
+    <div className="border-t border-neutral-800">
+      <button
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        className="flex w-full items-center gap-1.5 px-3 py-2 text-left"
+      >
+        <ChevronIcon collapsed={collapsed} />
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+          My Templates
+        </span>
+        <span className="rounded-full bg-neutral-800 px-1.5 py-px text-[10px] font-medium tabular-nums text-neutral-400">
+          {templates.length}
+        </span>
+      </button>
+
+      {!collapsed && (
+        <div className="flex flex-col gap-0.5 px-1 pb-2">
+          {templates.map((t) => {
+            const nodeCount = t.graph.nodes?.length ?? 0;
+            const nodeTypes = (t.graph.nodes ?? []).map((n) => n.type).join(" → ");
+            const isConfirming = confirmingId === t.id;
+            return (
+              <div
+                key={t.id}
+                className="group flex items-center rounded-md hover:bg-neutral-800/60"
+              >
+                {/* Apply button — takes up most of the row */}
+                <button
+                  type="button"
+                  onClick={() => { if (!isConfirming) onApply(t.graph, t.name); }}
+                  className="flex min-w-0 flex-1 flex-col gap-0.5 px-2.5 py-2 text-left"
+                  title={`Apply template: ${t.name}`}
+                >
+                  <span className="truncate text-sm text-neutral-200 group-hover:text-neutral-50">
+                    {t.name}
+                  </span>
+                  <span className="truncate text-[11px] text-neutral-500">
+                    {nodeCount} node{nodeCount !== 1 ? "s" : ""}
+                    {nodeTypes ? ` · ${nodeTypes}` : ""}
+                  </span>
+                </button>
+
+                {/* Delete affordance */}
+                {isConfirming ? (
+                  <div className="flex shrink-0 items-center gap-1 pr-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setConfirmingId(null); onDelete(t.id); }}
+                      className="rounded px-1.5 py-0.5 text-[10px] font-medium text-red-400 hover:bg-red-500/10"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setConfirmingId(null); }}
+                      className="rounded px-1.5 py-0.5 text-[10px] text-neutral-500 hover:bg-neutral-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setConfirmingId(t.id); }}
+                    title="Delete template"
+                    className="mr-1.5 shrink-0 rounded p-0.5 text-neutral-600 opacity-0 transition-opacity hover:bg-neutral-700 hover:text-neutral-300 group-hover:opacity-100"
+                  >
+                    <TrashIcon />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Inline SVG icons (avoids additional dependencies) ──
 
 function PlusIcon() {
@@ -313,6 +449,16 @@ function XIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
       <path d="M3 3l8 8M11 3l-8 8" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3h8" />
+      <path d="M4 3V2h4v1" />
+      <path d="M3 3l.6 7h4.8L9 3" />
     </svg>
   );
 }

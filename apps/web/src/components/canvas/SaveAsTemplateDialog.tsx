@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { templatePackLoader, type TemplatePack, type TemplatePackManifest } from "@aistudio/shared";
+import { useState, useCallback, useEffect } from "react";
 import type { WorkflowGraph } from "@aistudio/shared";
-import { persistPack } from "@/lib/templatePackStorage";
 
 // ── Props ──
 
@@ -14,6 +12,8 @@ export interface SaveAsTemplateDialogProps {
   getGraph: () => WorkflowGraph;
   /** Default name pre-filled from workflow meta */
   defaultName?: string;
+  /** Called after a successful DB save so callers can refresh template lists */
+  onSaved?: () => void;
 }
 
 // ── Component ──
@@ -23,14 +23,26 @@ export function SaveAsTemplateDialog({
   onClose,
   getGraph,
   defaultName = "",
+  onSaved,
 }: SaveAsTemplateDialogProps) {
   const [name, setName] = useState(defaultName || "My Template");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
-  const [tagsInput, setTagsInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleExport = useCallback(() => {
+  // Reset form when opened
+  useEffect(() => {
+    if (open) {
+      setName(defaultName || "My Template");
+      setDescription("");
+      setSaving(false);
+      setSaved(false);
+      setError(null);
+    }
+  }, [open, defaultName]);
+
+  const handleSave = useCallback(async () => {
     setError(null);
 
     const trimmedName = name.trim();
@@ -39,90 +51,39 @@ export function SaveAsTemplateDialog({
       return;
     }
 
-    try {
-      const graph = getGraph();
+    const graph = getGraph();
+    if (graph.nodes.length === 0) {
+      setError("Cannot save an empty workflow as a template");
+      return;
+    }
 
-      if (graph.nodes.length === 0) {
-        setError("Cannot save an empty workflow as a template");
+    setSaving(true);
+    try {
+      const res = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: trimmedName,
+          description: description.trim() || undefined,
+          graph,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError((data as { message?: string }).message || "Failed to save template");
         return;
       }
 
-      // Derive required node types from graph
-      const requiredNodeTypes = Array.from(
-        new Set(graph.nodes.map((n) => n.type)),
-      );
-
-      // Derive required providers from graph
-      const requiredProviders = Array.from(
-        new Set(
-          graph.nodes
-            .map((n) => n.data.providerId)
-            .filter((p): p is string => !!p),
-        ),
-      );
-
-      // Parse tags from comma-separated input
-      const tags = tagsInput
-        .split(",")
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
-
-      // Build template ID from name
-      const templateId = trimmedName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
-
-      const packId = `user-${templateId}-${Date.now()}`;
-
-      const manifest: TemplatePackManifest = {
-        id: packId,
-        name: trimmedName,
-        version: "1.0.0",
-        author: "User",
-        description: description.trim() || undefined,
-        category: category.trim() || undefined,
-        tags: tags.length > 0 ? tags : undefined,
-        templates: [templateId],
-        previews: {
-          [templateId]: `${graph.nodes.length} nodes, ${graph.edges.length} edges`,
-        },
-        requiredNodeTypes,
-        requiredProviders: requiredProviders.length > 0 ? requiredProviders : undefined,
-        source: "user",
-      };
-
-      const pack: TemplatePack = {
-        manifest,
-        templates: {
-          [templateId]: graph,
-        },
-      };
-
-      // Register in loader + persist to localStorage
-      if (templatePackLoader.has(pack.manifest.id)) {
-        templatePackLoader.unregister(pack.manifest.id);
-      }
-      templatePackLoader.register(pack);
-      persistPack(pack);
-
-      // Serialize and trigger download
-      const json = JSON.stringify(pack, null, 2);
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${templateId}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to export template");
+      setSaved(true);
+      onSaved?.();
+      setTimeout(() => { onClose(); }, 1200);
+    } catch {
+      setError("Connection error — please try again");
+    } finally {
+      setSaving(false);
     }
-  }, [name, description, category, tagsInput, getGraph, onClose]);
+  }, [name, description, getGraph, onClose]);
 
   if (!open) return null;
 
@@ -163,6 +124,8 @@ export function SaveAsTemplateDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="My Pipeline"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && !saving) handleSave(); }}
               className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-blue-500 focus:outline-none"
             />
           </label>
@@ -181,37 +144,14 @@ export function SaveAsTemplateDialog({
             />
           </label>
 
-          {/* Category */}
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-neutral-400">
-              Category
-            </span>
-            <input
-              type="text"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="e.g. content-creation, automation"
-              className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-blue-500 focus:outline-none"
-            />
-          </label>
-
-          {/* Tags */}
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-neutral-400">
-              Tags <span className="text-neutral-600">(comma-separated)</span>
-            </span>
-            <input
-              type="text"
-              value={tagsInput}
-              onChange={(e) => setTagsInput(e.target.value)}
-              placeholder="e.g. image, social, export"
-              className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-blue-500 focus:outline-none"
-            />
-          </label>
-
           {/* Error */}
           {error && (
             <p className="text-xs text-red-400">{error}</p>
+          )}
+
+          {/* Success */}
+          {saved && (
+            <p className="text-xs text-emerald-400">✓ Template saved</p>
           )}
         </div>
 
@@ -226,10 +166,17 @@ export function SaveAsTemplateDialog({
           </button>
           <button
             type="button"
-            onClick={handleExport}
-            className="rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-400 hover:bg-green-500/20"
+            onClick={handleSave}
+            disabled={saving || saved || !name.trim()}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              saved
+                ? "border-emerald-600/40 bg-emerald-600/10 text-emerald-400"
+                : saving || !name.trim()
+                ? "border-neutral-700 bg-neutral-800 text-neutral-600 cursor-default"
+                : "border-blue-500/40 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
+            }`}
           >
-            Export as JSON
+            {saved ? "Saved!" : saving ? "Saving…" : "Save Template"}
           </button>
         </div>
       </div>

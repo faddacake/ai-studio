@@ -69,6 +69,9 @@ function CanvasInner() {
   // ── Debug panel tab ───────────────────────────────────────────────────────
   const [activeDebugTab, setActiveDebugTab] = useState<"nodes" | "outputs">("nodes");
 
+  // ── Template refresh key — incremented after a successful Save as Template ──
+  const [templateRefreshKey, setTemplateRefreshKey] = useState(0);
+
   // ── Inline workflow rename ────────────────────────────────────────────────
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -323,6 +326,8 @@ function CanvasInner() {
       {/* Left: Node Palette */}
       <NodePalette
         onAddNode={handleAddNode}
+        onApplyTemplate={handleTemplateSelect}
+        templateRefreshKey={templateRefreshKey}
         open={paletteOpen}
         onToggle={togglePalette}
       />
@@ -578,6 +583,7 @@ function CanvasInner() {
         onClose={toggleSaveAsTemplate}
         getGraph={getWorkflowGraph}
         defaultName={useWorkflowStore.getState().meta?.name}
+        onSaved={() => setTemplateRefreshKey((k) => k + 1)}
       />
 
       {/* Confirm delete dialog — shown when deleting a node with connected edges */}

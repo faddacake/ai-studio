@@ -91,6 +91,7 @@ export default function WorkflowsPage() {
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkWorking, setBulkWorking] = useState(false);
   const [bulkExportProgress, setBulkExportProgress] = useState<{ done: number; total: number } | null>(null);
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -533,8 +534,9 @@ export default function WorkflowsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const target = e.target as HTMLElement;
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) return;
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
         e.preventDefault();
         setSelectedIds(new Set(filtered.map((w) => w.id)));
@@ -543,10 +545,18 @@ export default function WorkflowsPage() {
         setSelectedIds(new Set());
         setBulkDeleteConfirm(false);
       }
+      if (e.key === "e" || e.key === "E") {
+        if (bulkWorking) return;
+        if (!activeWorkflowId) return;
+        const w = filtered.find((x) => x.id === activeWorkflowId);
+        if (!w) return;
+        e.preventDefault();
+        handleExport(w.id, w.name);
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [filtered]);
+  }, [filtered, bulkWorking, activeWorkflowId]);
 
   return (
     <div style={{ padding: 32 }}>
@@ -960,11 +970,15 @@ export default function WorkflowsPage() {
                 transition: "background-color 100ms ease",
               }}
               onMouseEnter={(e) => {
+                setActiveWorkflowId(w.id);
                 if (!selectedIds.has(w.id)) e.currentTarget.style.backgroundColor = "var(--color-surface-hover)";
               }}
               onMouseLeave={(e) => {
+                setActiveWorkflowId(null);
                 e.currentTarget.style.backgroundColor = selectedIds.has(w.id) ? "var(--color-accent)0d" : "var(--color-surface)";
               }}
+              onFocus={() => setActiveWorkflowId(w.id)}
+              onBlur={() => setActiveWorkflowId(null)}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span
@@ -1237,7 +1251,7 @@ export default function WorkflowsPage() {
                               ],
                               [
                                 { label: duplicatingId === w.id ? "Copying…" : "Duplicate", action: () => { setOpenMenuId(null); handleDuplicate(w.id); }, disabled: duplicatingId === w.id },
-                                { label: exportingId === w.id ? "Exporting…" : "Export", action: () => { setOpenMenuId(null); handleExport(w.id, w.name); }, disabled: exportingId === w.id },
+                                { label: exportingId === w.id ? "Exporting…" : "Export  (E)", action: () => { setOpenMenuId(null); handleExport(w.id, w.name); }, disabled: exportingId === w.id },
                               ],
                               [
                                 { label: savingTemplateId === w.id ? "Saving…" : "Save as Template", action: () => { setOpenMenuId(null); handleSaveAsTemplate(w.id); }, disabled: savingTemplateId === w.id },

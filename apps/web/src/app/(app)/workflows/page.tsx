@@ -386,9 +386,45 @@ export default function WorkflowsPage() {
           </p>
         </div>
       ) : filtered.length === 0 ? (
-        <p style={{ fontSize: 14, color: "var(--color-text-muted)" }}>
-          No workflows match &ldquo;{search.trim()}&rdquo;.
-        </p>
+        <div style={{ textAlign: "center", padding: "64px 20px" }}>
+          <p style={{ fontSize: 16, color: "var(--color-text-secondary)", marginBottom: 16 }}>
+            {search.trim() && activeTag
+              ? "No workflows match this search and tag combination."
+              : search.trim()
+              ? "No workflows match your search."
+              : "No workflows found with this tag."}
+          </p>
+          <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+            {search.trim() && (
+              <button
+                onClick={() => setSearch("")}
+                style={{
+                  padding: "7px 16px", fontSize: 13,
+                  backgroundColor: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 8, color: "var(--color-text-secondary)",
+                  cursor: "pointer",
+                }}
+              >
+                Clear Search
+              </button>
+            )}
+            {activeTag && (
+              <button
+                onClick={() => setActiveTag(null)}
+                style={{
+                  padding: "7px 16px", fontSize: 13,
+                  backgroundColor: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 8, color: "var(--color-text-secondary)",
+                  cursor: "pointer",
+                }}
+              >
+                Clear Filter
+              </button>
+            )}
+          </div>
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.map((w) => (

@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-12
-Session: Run Outputs Viewer Added to Workflow Debugger
+Session: Node Output Persistence — Outputs Survive Page Refresh via DB
 
 ---
 
@@ -10,6 +10,16 @@ Session: Run Outputs Viewer Added to Workflow Debugger
 Primary Task:
 Provider-backed workflow nodes now fail with a clear, actionable error when no API key is configured,
 instead of silently producing mock images.
+
+Completed (Session 65 — committed as `8bdd8e6`):
+- [x] Identified nodeExecutions table existed in schema but was never written to
+- [x] Identified FK dependency: runs record must exist before nodeExecutions can be inserted
+- [x] Fixed: runs record now inserted at run START (status "running") instead of only at completion
+- [x] runs record is updated to final terminal status in existing .then() continuation
+- [x] makeDispatch: inserts nodeExecutions row on node completed (with outputs JSON) and on node failed (with error); both wrapped in non-fatal try/catch
+- [x] outputs/route.ts: keeps in-memory coordinator as primary read path; adds DB fallback via nodeExecutions.outputs when coordinator no longer holds the run
+- [x] Stored format: JSON.stringify(result.outputs) — ArtifactRef, candidate collections, strings, primitives are all JSON-safe
+- [x] Limitation: cancelled nodes have no nodeExecutions record (never dispatched); image files at /tmp still needed for rendering after refresh
 
 Completed (Session 64 — committed as `9adfaac`):
 - [x] Audited run output data path: debugSnapshot has outputKeys only (no values); /api/outputs returns full values; /api/artifacts?path= serves local image files

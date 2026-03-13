@@ -574,10 +574,19 @@ export default function WorkflowsPage() {
         e.preventDefault();
         setDeletingId(w.id);
       }
+      if (e.key === "p" || e.key === "P") {
+        if (bulkWorking) return;
+        if (!activeWorkflowId) return;
+        if (pinningId) return;
+        const w = filtered.find((x) => x.id === activeWorkflowId);
+        if (!w) return;
+        e.preventDefault();
+        handleTogglePin(w.id, w.isPinned);
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [filtered, bulkWorking, activeWorkflowId, duplicatingId, deletingId]);
+  }, [filtered, bulkWorking, activeWorkflowId, duplicatingId, deletingId, pinningId]);
 
   useEffect(() => {
     if (!showShortcutHelp) return;
@@ -666,6 +675,7 @@ export default function WorkflowsPage() {
                 {([
                   ["E", "Export focused workflow"],
                   ["D", "Duplicate focused workflow"],
+                  ["P", "Pin / Unpin focused workflow"],
                   ["Del", "Open delete confirmation"],
                   ["⌘A / Ctrl A", "Select all"],
                   ["Esc", "Clear selection"],
@@ -1295,7 +1305,7 @@ export default function WorkflowsPage() {
                       disabled={pinningId === w.id}
                       style={{ fontSize: 12, color: w.isPinned ? "var(--color-accent)" : "var(--color-text-muted)", background: "none", border: "none", cursor: pinningId === w.id ? "default" : "pointer", padding: "2px 6px" }}
                     >
-                      {pinningId === w.id ? "…" : w.isPinned ? "Unpin" : "Pin"}
+                      {pinningId === w.id ? "…" : w.isPinned ? "Unpin  (P)" : "Pin  (P)"}
                     </button>
                     <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
                     {/* Overflow menu */}

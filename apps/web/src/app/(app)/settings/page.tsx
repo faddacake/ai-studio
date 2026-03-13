@@ -1,7 +1,200 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+
+// ── Artifact cleanup helpers ──────────────────────────────────────────────────
+
+type CleanupResult = {
+  deleted: string[];
+  skipped: string[];
+  dryRun: boolean;
+  freedBytes: number;
+};
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+type UsageInfo = { totalBytes: number; runCount: number };
+
+function ArtifactCleanupSection() {
+  const [olderThanDays, setOlderThanDays] = useState("30");
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<CleanupResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<UsageInfo | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/artifacts/cleanup")
+      .then((r) => r.ok ? r.json() as Promise<UsageInfo> : Promise.reject())
+      .then(setUsage)
+      .catch(() => {/* non-fatal */});
+  }, []);
+
+  async function runCleanup(dryRun: boolean) {
+    setRunning(true);
+    setResult(null);
+    setError(null);
+    try {
+      const days = olderThanDays.trim() ? Number(olderThanDays) : undefined;
+      const body: Record<string, unknown> = { dryRun };
+      if (days != null && !isNaN(days) && days > 0) body.olderThanDays = days;
+
+      const res = await fetch("/api/admin/artifacts/cleanup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json() as CleanupResult;
+      setResult(data);
+
+      // Refresh usage after a real deletion
+      if (!dryRun && data.deleted.length > 0) {
+        fetch("/api/admin/artifacts/cleanup")
+          .then((r) => r.ok ? r.json() as Promise<UsageInfo> : Promise.reject())
+          .then(setUsage)
+          .catch(() => {/* non-fatal */});
+      }
+    } catch {
+      setError("Cleanup request failed.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Current usage summary */}
+      <div style={{
+        padding: "10px 14px",
+        backgroundColor: "var(--color-bg-primary)",
+        border: "1px solid var(--color-border)",
+        borderRadius: 8,
+        fontSize: 13,
+        color: "var(--color-text-secondary)",
+      }}>
+        {usage === null ? (
+          <span>Calculating storage usage…</span>
+        ) : usage.runCount === 0 ? (
+          <span>No artifact directories — storage is empty.</span>
+        ) : (
+          <span>
+            <strong style={{ color: "var(--color-text-primary)" }}>{formatBytes(usage.totalBytes)}</strong>
+            {" used across "}
+            <strong style={{ color: "var(--color-text-primary)" }}>{usage.runCount}</strong>
+            {usage.runCount === 1 ? " run directory" : " run directories"}
+          </span>
+        )}
+      </div>
+
+      <p style={{ fontSize: 14, color: "var(--color-text-secondary)", margin: 0 }}>
+        Remove artifact directories (generated images) for runs that are orphaned or older than a
+        specified age. Orphaned means the run directory has no matching run record in the database.
+      </p>
+
+      <label style={{ display: "block" }}>
+        <span style={{ fontSize: 13, color: "var(--color-text-secondary)", display: "block", marginBottom: 5 }}>
+          Also delete runs older than (days) — leave blank for orphans only
+        </span>
+        <input
+          type="number"
+          min={1}
+          value={olderThanDays}
+          onChange={(e) => setOlderThanDays(e.target.value)}
+          placeholder="e.g. 30"
+          style={{
+            width: 120,
+            padding: "8px 10px",
+            backgroundColor: "var(--color-bg-primary)",
+            border: "1px solid var(--color-border)",
+            borderRadius: 8,
+            color: "var(--color-text-primary)",
+            fontSize: 14,
+            outline: "none",
+          }}
+        />
+      </label>
+
+      <div style={{ display: "flex", gap: 10 }}>
+        <button
+          onClick={() => runCleanup(true)}
+          disabled={running}
+          style={{
+            padding: "8px 16px",
+            backgroundColor: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+            borderRadius: 8,
+            color: "var(--color-text-secondary)",
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: running ? "default" : "pointer",
+          }}
+        >
+          {running ? "Running…" : "Preview (dry run)"}
+        </button>
+        <button
+          onClick={() => runCleanup(false)}
+          disabled={running}
+          style={{
+            padding: "8px 16px",
+            backgroundColor: running ? "var(--color-surface)" : "var(--color-error, #ef4444)",
+            border: "none",
+            borderRadius: 8,
+            color: running ? "var(--color-text-muted)" : "#fff",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: running ? "default" : "pointer",
+          }}
+        >
+          {running ? "Running…" : "Delete artifacts"}
+        </button>
+      </div>
+
+      {error && (
+        <p style={{ fontSize: 13, color: "var(--color-error)", margin: 0 }}>{error}</p>
+      )}
+
+      {result && (
+        <div style={{
+          padding: "12px 14px",
+          backgroundColor: "var(--color-bg-primary)",
+          border: "1px solid var(--color-border)",
+          borderRadius: 8,
+          fontSize: 13,
+        }}>
+          {result.dryRun && (
+            <p style={{ color: "var(--color-text-secondary)", marginBottom: 6, fontWeight: 600 }}>
+              Dry run — no files were deleted.
+            </p>
+          )}
+          {result.deleted.length === 0 ? (
+            <p style={{ color: "var(--color-text-muted)", margin: 0 }}>Nothing to clean up.</p>
+          ) : (
+            <>
+              <p style={{ color: "var(--color-text-primary)", margin: "0 0 6px" }}>
+                {result.dryRun ? "Would delete" : "Deleted"} {result.deleted.length}{" "}
+                {result.deleted.length === 1 ? "run directory" : "run directories"}{" "}
+                ({formatBytes(result.freedBytes)} freed).
+              </p>
+              <details>
+                <summary style={{ cursor: "pointer", color: "var(--color-text-muted)", fontSize: 12 }}>
+                  Show run IDs
+                </summary>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 20, color: "var(--color-text-muted)", fontSize: 11 }}>
+                  {result.deleted.map((id) => <li key={id}>{id}</li>)}
+                </ul>
+              </details>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const [currentPw, setCurrentPw] = useState("");
@@ -130,6 +323,11 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
+      </Section>
+
+      {/* Storage */}
+      <Section title="Storage">
+        <ArtifactCleanupSection />
       </Section>
 
       {/* About */}

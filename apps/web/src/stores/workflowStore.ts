@@ -72,6 +72,11 @@ interface WorkflowMeta {
   description: string;
 }
 
+interface HistorySnapshot {
+  nodes: Node[];
+  edges: Edge[];
+}
+
 interface WorkflowState {
   // Workflow identity
   meta: WorkflowMeta | null;
@@ -79,6 +84,9 @@ interface WorkflowState {
   // React Flow state
   nodes: Node[];
   edges: Edge[];
+
+  // Undo history
+  historyStack: HistorySnapshot[];
 
   // UI state
   selectedNodeId: string | null;
@@ -115,6 +123,8 @@ interface WorkflowState {
   runWorkflow: () => Promise<void>;
   updateMetaName: (name: string) => void;
   getWorkflowGraph: () => WorkflowGraph;
+  pushHistory: () => void;
+  undo: () => void;
 }
 
 // ── Store ──
@@ -123,6 +133,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   meta: null,
   nodes: [],
   edges: [],
+  historyStack: [],
   selectedNodeId: null,
   paletteOpen: true,
   inspectorOpen: false,
@@ -135,7 +146,32 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   saving: false,
   isRunning: false,
 
+  pushHistory: () => {
+    const { nodes, edges, historyStack } = get();
+    const snapshot: HistorySnapshot = { nodes, edges };
+    const next = historyStack.length >= 50
+      ? [...historyStack.slice(1), snapshot]
+      : [...historyStack, snapshot];
+    set({ historyStack: next });
+  },
+
+  undo: () => {
+    const { historyStack } = get();
+    if (historyStack.length === 0) return;
+    const snapshot = historyStack[historyStack.length - 1];
+    set({
+      nodes: snapshot.nodes,
+      edges: snapshot.edges,
+      historyStack: historyStack.slice(0, -1),
+      selectedNodeId: null,
+      dirty: true,
+    });
+  },
+
   onNodesChange: (changes) => {
+    if (changes.some((c) => c.type === "remove")) {
+      get().pushHistory();
+    }
     set((s) => ({
       nodes: applyNodeChanges(changes, s.nodes),
       dirty: true,
@@ -143,6 +179,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
 
   onEdgesChange: (changes) => {
+    if (changes.some((c) => c.type === "remove")) {
+      get().pushHistory();
+    }
     set((s) => ({
       edges: applyEdgeChanges(changes, s.edges),
       dirty: true,
@@ -150,6 +189,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
 
   onConnect: (connection) => {
+    get().pushHistory();
     set((s) => ({
       edges: addEdge(
         { ...connection, id: crypto.randomUUID(), type: "default" },
@@ -166,10 +206,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       edges: graph.edges.map(toFlowEdge),
       selectedNodeId: null,
       dirty: false,
+      historyStack: [],
     });
   },
 
   addNode: (node) => {
+    get().pushHistory();
     set((s) => ({
       nodes: [...s.nodes, toFlowNode(node)],
       dirty: true,
@@ -177,6 +219,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
 
   removeNode: (nodeId) => {
+    get().pushHistory();
     set((s) => ({
       nodes: s.nodes.filter((n) => n.id !== nodeId),
       edges: s.edges.filter(
@@ -195,6 +238,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
 
   updateNodeParam: (nodeId, key, value) => {
+    get().pushHistory();
     set((s) => ({
       nodes: s.nodes.map((n) => {
         if (n.id !== nodeId) return n;

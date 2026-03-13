@@ -64,6 +64,8 @@ function CanvasInner() {
     runWorkflow,
     updateMetaName,
     getWorkflowGraph,
+    pushHistory,
+    undo,
   } = useWorkflowStore();
 
   // ── Debug panel tab ───────────────────────────────────────────────────────
@@ -309,6 +311,11 @@ function CanvasInner() {
     setPendingTemplate(null);
   }, []);
 
+  // Push history on drag start so node moves are undoable
+  const handleNodeDragStart = useCallback(() => {
+    pushHistory();
+  }, [pushHistory]);
+
   // Keyboard shortcuts
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -316,8 +323,12 @@ function CanvasInner() {
         e.preventDefault();
         saveGraph();
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+        e.preventDefault();
+        undo();
+      }
     },
-    [saveGraph],
+    [saveGraph, undo],
   );
 
   return (
@@ -368,6 +379,7 @@ function CanvasInner() {
           isValidConnection={handleIsValidConnection}
           onBeforeDelete={handleBeforeDelete}
           onNodeClick={handleNodeClick}
+          onNodeDragStart={handleNodeDragStart}
           onPaneClick={handlePaneClick}
           fitView
           proOptions={{ hideAttribution: true }}

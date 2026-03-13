@@ -58,6 +58,15 @@ export default function WorkflowsPage() {
     return (v === "lastRun" || v === "name") ? v : "updated";
   });
 
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopyLink() {
+    if (typeof navigator === "undefined") return;
+    await navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   const fetchWorkflows = useCallback(async () => {
     const res = await fetch("/api/workflows");
     if (res.ok) {
@@ -378,6 +387,21 @@ export default function WorkflowsPage() {
               <option value="name">Name A–Z</option>
             </select>
           </label>
+          <button
+            onClick={handleCopyLink}
+            style={{
+              padding: "6px 12px", fontSize: 13,
+              backgroundColor: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+              borderRadius: 8,
+              color: copied ? "var(--color-accent)" : "var(--color-text-muted)",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              transition: "color 150ms ease",
+            }}
+          >
+            {copied ? "Copied!" : "Copy link"}
+          </button>
         </div>
       )}
 

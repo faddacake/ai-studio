@@ -141,6 +141,7 @@ export default function WorkflowsPage() {
         const w = workflows.find((x) => x.id === id);
         if (w) await handleExport(id, w.name);
       }
+      clearSelection();
     } finally {
       setBulkWorking(false);
     }

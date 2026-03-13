@@ -25,6 +25,7 @@ export default function WorkflowsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const fetchWorkflows = useCallback(async () => {
@@ -38,6 +39,19 @@ export default function WorkflowsPage() {
   useEffect(() => {
     fetchWorkflows();
   }, [fetchWorkflows]);
+
+  async function handleDuplicate(id: string) {
+    setDuplicatingId(id);
+    try {
+      const res = await fetch(`/api/workflows/${id}/duplicate`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        router.push(`/workflows/${data.id}`);
+      }
+    } finally {
+      setDuplicatingId(null);
+    }
+  }
 
   async function handleDelete(id: string) {
     const res = await fetch(`/api/workflows/${id}`, { method: "DELETE" });
@@ -243,6 +257,14 @@ export default function WorkflowsPage() {
                     >
                       History
                     </a>
+                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDuplicate(w.id); }}
+                      disabled={duplicatingId === w.id}
+                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: duplicatingId === w.id ? "default" : "pointer", padding: "2px 6px" }}
+                    >
+                      {duplicatingId === w.id ? "Copying…" : "Duplicate"}
+                    </button>
                     <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeletingId(w.id); }}

@@ -85,8 +85,9 @@ interface WorkflowState {
   nodes: Node[];
   edges: Edge[];
 
-  // Undo history
+  // Undo/redo history
   historyStack: HistorySnapshot[];
+  redoStack: HistorySnapshot[];
 
   // UI state
   selectedNodeId: string | null;
@@ -125,6 +126,7 @@ interface WorkflowState {
   getWorkflowGraph: () => WorkflowGraph;
   pushHistory: () => void;
   undo: () => void;
+  redo: () => void;
 }
 
 // ── Store ──
@@ -134,6 +136,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   nodes: [],
   edges: [],
   historyStack: [],
+  redoStack: [],
   selectedNodeId: null,
   paletteOpen: true,
   inspectorOpen: false,
@@ -152,17 +155,34 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     const next = historyStack.length >= 50
       ? [...historyStack.slice(1), snapshot]
       : [...historyStack, snapshot];
-    set({ historyStack: next });
+    set({ historyStack: next, redoStack: [] });
   },
 
   undo: () => {
-    const { historyStack } = get();
+    const { nodes, edges, historyStack, redoStack } = get();
     if (historyStack.length === 0) return;
     const snapshot = historyStack[historyStack.length - 1];
+    const redoSnapshot: HistorySnapshot = { nodes, edges };
     set({
       nodes: snapshot.nodes,
       edges: snapshot.edges,
       historyStack: historyStack.slice(0, -1),
+      redoStack: [...redoStack, redoSnapshot],
+      selectedNodeId: null,
+      dirty: true,
+    });
+  },
+
+  redo: () => {
+    const { nodes, edges, historyStack, redoStack } = get();
+    if (redoStack.length === 0) return;
+    const snapshot = redoStack[redoStack.length - 1];
+    const undoSnapshot: HistorySnapshot = { nodes, edges };
+    set({
+      nodes: snapshot.nodes,
+      edges: snapshot.edges,
+      historyStack: [...historyStack, undoSnapshot],
+      redoStack: redoStack.slice(0, -1),
       selectedNodeId: null,
       dirty: true,
     });
@@ -207,6 +227,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       selectedNodeId: null,
       dirty: false,
       historyStack: [],
+      redoStack: [],
     });
   },
 

@@ -66,6 +66,7 @@ function CanvasInner() {
     getWorkflowGraph,
     pushHistory,
     undo,
+    redo,
   } = useWorkflowStore();
 
   // ── Debug panel tab ───────────────────────────────────────────────────────
@@ -323,12 +324,18 @@ function CanvasInner() {
         e.preventDefault();
         saveGraph();
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
+      } else if (e.ctrlKey && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redo();
       }
     },
-    [saveGraph, undo],
+    [saveGraph, undo, redo],
   );
 
   return (

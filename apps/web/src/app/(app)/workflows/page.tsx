@@ -31,20 +31,29 @@ export default function WorkflowsPage() {
   const [renameInput, setRenameInput] = useState("");
   const [renameSaving, setRenameSaving] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
-  const [search, setSearch] = useState(() =>
-    typeof window !== "undefined" ? (localStorage.getItem("aiStudio.workflow.search") ?? "") : "",
-  );
+  const [search, setSearch] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const p = new URLSearchParams(window.location.search);
+    return p.get("search") ?? localStorage.getItem("aiStudio.workflow.search") ?? "";
+  });
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState("");
   const [tagSaving, setTagSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const [activeTag, setActiveTag] = useState<string | null>(() =>
-    typeof window !== "undefined" ? (localStorage.getItem("aiStudio.workflow.tag") || null) : null,
-  );
+  const [activeTag, setActiveTag] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const p = new URLSearchParams(window.location.search);
+    const urlTag = p.get("tag");
+    if (urlTag !== null) return urlTag || null;
+    return localStorage.getItem("aiStudio.workflow.tag") || null;
+  });
   const [sortBy, setSortBy] = useState<"updated" | "lastRun" | "name">(() => {
     if (typeof window === "undefined") return "updated";
+    const p = new URLSearchParams(window.location.search);
+    const urlSort = p.get("sort");
+    if (urlSort === "lastRun" || urlSort === "name" || urlSort === "updated") return urlSort;
     const v = localStorage.getItem("aiStudio.workflow.sort");
     return (v === "lastRun" || v === "name") ? v : "updated";
   });
@@ -59,12 +68,20 @@ export default function WorkflowsPage() {
 
   useEffect(() => { fetchWorkflows(); }, [fetchWorkflows]);
 
-  useEffect(() => { localStorage.setItem("aiStudio.workflow.search", search); }, [search]);
   useEffect(() => {
+    // Persist to localStorage
+    localStorage.setItem("aiStudio.workflow.search", search);
     if (activeTag) localStorage.setItem("aiStudio.workflow.tag", activeTag);
     else localStorage.removeItem("aiStudio.workflow.tag");
-  }, [activeTag]);
-  useEffect(() => { localStorage.setItem("aiStudio.workflow.sort", sortBy); }, [sortBy]);
+    localStorage.setItem("aiStudio.workflow.sort", sortBy);
+    // Sync URL (replace so search typing doesn't pollute history)
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (activeTag) params.set("tag", activeTag);
+    if (sortBy !== "updated") params.set("sort", sortBy);
+    const qs = params.toString();
+    router.replace(qs ? `/workflows?${qs}` : "/workflows");
+  }, [search, activeTag, sortBy, router]);
 
   function startRename(id: string, currentName: string) {
     setRenamingId(id);

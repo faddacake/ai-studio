@@ -289,13 +289,13 @@ function CanvasInner() {
 
   const handleTemplateSelect = useCallback(
     (graph: WorkflowGraph, name: string) => {
-      if (dirty) {
+      if (nodes.length > 0) {
         setPendingTemplate({ graph, name });
       } else {
         applyTemplate(graph, name);
       }
     },
-    [dirty, applyTemplate],
+    [nodes.length, applyTemplate],
   );
 
   const handleConfirmReplace = useCallback(() => {

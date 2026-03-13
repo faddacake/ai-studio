@@ -2,10 +2,10 @@
 
 /**
  * ConfirmReplaceDialog — shown when the user tries to load a template
- * while the canvas has unsaved changes (dirty === true).
+ * while the canvas already contains nodes.
  *
  * Follows the same modal pattern as SaveAsTemplateDialog:
- * dark overlay + centered card with Cancel / Replace actions.
+ * dark overlay + centered card with Cancel / Apply Template actions.
  */
 
 export interface ConfirmReplaceDialogProps {
@@ -45,16 +45,15 @@ export function ConfirmReplaceDialog({
         <div className="px-5 py-4 text-sm text-neutral-400 leading-relaxed">
           {templateName ? (
             <>
-              Loading{" "}
+              Applying{" "}
               <span className="font-medium text-neutral-200">
                 {templateName}
               </span>{" "}
-              will replace your current workflow.{" "}
+              will replace the current workflow graph.
             </>
           ) : (
-            "This will replace your current workflow. "
+            "Applying this template will replace the current workflow graph."
           )}
-          Unsaved changes will be lost.
         </div>
 
         {/* Footer */}
@@ -71,7 +70,7 @@ export function ConfirmReplaceDialog({
             onClick={onConfirm}
             className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/20"
           >
-            Replace
+            Apply Template
           </button>
         </div>
       </div>

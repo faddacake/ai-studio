@@ -604,10 +604,19 @@ export default function WorkflowsPage() {
         e.preventDefault();
         startRename(w.id, w.name);
       }
+      if (e.key === "x" || e.key === "X") {
+        if (bulkWorking) return;
+        if (!activeWorkflowId) return;
+        if (runningId) return;
+        const w = filtered.find((x) => x.id === activeWorkflowId);
+        if (!w) return;
+        e.preventDefault();
+        handleRun(w.id);
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [filtered, bulkWorking, activeWorkflowId, duplicatingId, deletingId, pinningId, renamingId]);
+  }, [filtered, bulkWorking, activeWorkflowId, duplicatingId, deletingId, pinningId, renamingId, runningId]);
 
   useEffect(() => {
     if (!showShortcutHelp) return;
@@ -724,6 +733,7 @@ export default function WorkflowsPage() {
                   Keyboard Shortcuts
                 </div>
                 {([
+                  ["X", "Run focused workflow"],
                   ["R", "Rename focused workflow"],
                   ["E", "Export focused workflow"],
                   ["D", "Duplicate focused workflow"],
@@ -1368,7 +1378,7 @@ export default function WorkflowsPage() {
                       title={runningId === w.id ? "Run starting…" : "Run workflow"}
                       style={{ fontSize: 12, color: runningId === w.id ? "var(--color-text-muted)" : "var(--color-success, #4ade80)", background: "none", border: "none", cursor: runningId ? "default" : "pointer", padding: "2px 6px" }}
                     >
-                      {runningId === w.id ? "Starting…" : "▶ Run"}
+                      {runningId === w.id ? "Starting…" : "▶ Run  (X)"}
                     </button>
                     <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
                     <button

@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-12
-Session: Historical Run Detail Page at /workflows/:id/history/:runId
+Session: Durable Artifact Storage — Images Now Survive Server Restarts
 
 ---
 
@@ -10,6 +10,15 @@ Session: Historical Run Detail Page at /workflows/:id/history/:runId
 Primary Task:
 Provider-backed workflow nodes now fail with a clear, actionable error when no API key is configured,
 instead of silently producing mock images.
+
+Completed (Session 67 — committed as `f3fdcce`):
+- [x] Identified all /tmp/aistudio-runs usages: runs/route.ts (outputDir) and artifacts/route.ts (ALLOWED_PREFIX)
+- [x] Created lib/artifactStorage.ts — exports ARTIFACTS_DIR = path.join(process.cwd(), "data", "artifacts")
+  apps/web/data/ is already git-ignored; directory is created on first write by writeArtifact
+- [x] Updated runs/route.ts — outputDir and provider executor fallback now use ARTIFACTS_DIR
+- [x] Updated artifacts/route.ts — ALLOWED_PREFIXES accepts both ARTIFACTS_DIR (new, durable) and /tmp/aistudio-runs/ (legacy, transient)
+- [x] Old /tmp refs still served while the process runs; do not survive restart (same as before, now explicitly documented)
+- [x] Limitation: single-machine local storage only; no retention/cleanup policy; no cloud/S3 path
 
 Completed (Session 66 — committed as `35c8c0e`):
 - [x] Built GET /api/workflows/:id/runs/:runId — returns run record, nodeExecution rows sorted by startedAt, and nodeId→label map from graphSnapshot

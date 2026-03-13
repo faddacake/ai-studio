@@ -562,10 +562,19 @@ export default function WorkflowsPage() {
         e.preventDefault();
         handleDuplicate(w.id);
       }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (bulkWorking) return;
+        if (!activeWorkflowId) return;
+        if (deletingId) return;
+        const w = filtered.find((x) => x.id === activeWorkflowId);
+        if (!w) return;
+        e.preventDefault();
+        setDeletingId(w.id);
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [filtered, bulkWorking, activeWorkflowId, duplicatingId]);
+  }, [filtered, bulkWorking, activeWorkflowId, duplicatingId, deletingId]);
 
   return (
     <div style={{ padding: 32 }}>
@@ -1267,7 +1276,7 @@ export default function WorkflowsPage() {
                                 { label: "Use Template", action: () => { setOpenMenuId(null); setStarterKey("template"); setSelectedTemplateId(templates[0]?.id ?? null); setShowModal(true); }, disabled: templates.length === 0 },
                               ],
                               [
-                                { label: "Delete", action: () => { setOpenMenuId(null); setDeletingId(w.id); }, danger: true },
+                                { label: "Delete  (Del)", action: () => { setOpenMenuId(null); setDeletingId(w.id); }, danger: true },
                               ],
                             ] as { label: string; action: () => void; disabled?: boolean; danger?: boolean }[][]
                           ).map((group, gi) => (

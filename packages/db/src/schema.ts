@@ -11,6 +11,7 @@ export const workflows = sqliteTable(
     isTemplate: integer("is_template", { mode: "boolean" }).default(false),
     templateSource: text("template_source"), // 'builtin' | 'user' | null
     tags: text("tags").default("[]"), // JSON: string[]
+    isPinned: integer("is_pinned", { mode: "boolean" }).default(false),
     lastRunId: text("last_run_id"),
     lastRunStatus: text("last_run_status"),
     lastRunAt: text("last_run_at"),

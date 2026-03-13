@@ -56,6 +56,7 @@ export async function PATCH(
   if (body.name !== undefined) updates.name = body.name;
   if (body.description !== undefined) updates.description = body.description;
   if (body.graph !== undefined) updates.graph = JSON.stringify(body.graph);
+  if (typeof body.isPinned === "boolean") updates.isPinned = body.isPinned;
   if (Array.isArray(body.tags)) {
     updates.tags = JSON.stringify(
       body.tags.filter((t: unknown) => typeof t === "string" && t.trim()).map((t: string) => t.trim()),

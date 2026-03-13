@@ -9,6 +9,7 @@ interface Workflow {
   name: string;
   description: string;
   tags: string[];
+  isPinned: boolean;
   lastRunStatus: string | null;
   lastRunAt: string | null;
   updatedAt: string;
@@ -62,6 +63,23 @@ export default function WorkflowsPage() {
   });
 
   const [copied, setCopied] = useState(false);
+  const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [pinningId, setPinningId] = useState<string | null>(null);
+
+  async function handleTogglePin(id: string, current: boolean) {
+    setPinningId(id);
+    try {
+      const res = await fetch(`/api/workflows/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPinned: !current }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      setWorkflows((prev) => prev.map((w) => w.id === id ? { ...w, isPinned: !current } : w));
+    } finally {
+      setPinningId(null);
+    }
+  }
 
   async function handleCopyLink() {
     if (typeof navigator === "undefined") return;
@@ -306,7 +324,8 @@ export default function WorkflowsPage() {
         (w.description ?? "").toLowerCase().includes(q) ||
         (w.tags ?? []).some((t) => t.toLowerCase().includes(q));
       const matchesTag = activeTag === null || (w.tags ?? []).includes(activeTag);
-      return matchesSearch && matchesTag;
+      const matchesPin = !pinnedOnly || w.isPinned;
+      return matchesSearch && matchesTag && matchesPin;
     })
     .slice()
     .sort((a, b) => {
@@ -435,6 +454,22 @@ export default function WorkflowsPage() {
           >
             {copied ? "Copied!" : "Copy link"}
           </button>
+          <button
+            onClick={() => setPinnedOnly((v) => !v)}
+            style={{
+              padding: "6px 12px", fontSize: 13,
+              backgroundColor: pinnedOnly ? "var(--color-accent)" : "var(--color-surface)",
+              border: "1px solid",
+              borderColor: pinnedOnly ? "var(--color-accent)" : "var(--color-border)",
+              borderRadius: 8,
+              color: pinnedOnly ? "#fff" : "var(--color-text-muted)",
+              cursor: "pointer",
+              fontWeight: pinnedOnly ? 600 : 400,
+              whiteSpace: "nowrap",
+            }}
+          >
+            📌 Pinned
+          </button>
         </div>
       )}
 
@@ -511,7 +546,9 @@ export default function WorkflowsPage() {
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: "64px 20px" }}>
           <p style={{ fontSize: 16, color: "var(--color-text-secondary)", marginBottom: 16 }}>
-            {search.trim() && activeTag
+            {pinnedOnly && !search.trim() && !activeTag
+              ? "No pinned workflows."
+              : search.trim() && activeTag
               ? "No workflows match this search and tag combination."
               : search.trim()
               ? "No workflows match your search."
@@ -544,6 +581,20 @@ export default function WorkflowsPage() {
                 }}
               >
                 Clear Filter
+              </button>
+            )}
+            {pinnedOnly && (
+              <button
+                onClick={() => setPinnedOnly(false)}
+                style={{
+                  padding: "7px 16px", fontSize: 13,
+                  backgroundColor: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 8, color: "var(--color-text-secondary)",
+                  cursor: "pointer",
+                }}
+              >
+                Show All
               </button>
             )}
           </div>
@@ -617,8 +668,13 @@ export default function WorkflowsPage() {
                     )}
                   </span>
                 ) : (
-                  <span style={{ fontWeight: 600, fontSize: 15, color: "var(--color-text-primary)" }}>
-                    {w.name}
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontWeight: 600, fontSize: 15, color: "var(--color-text-primary)" }}>
+                      {w.name}
+                    </span>
+                    {w.isPinned && (
+                      <span style={{ fontSize: 12, color: "var(--color-accent)", lineHeight: 1 }} title="Pinned">📌</span>
+                    )}
                   </span>
                 )}
                 {w.lastRunStatus && renamingId !== w.id && (
@@ -768,6 +824,14 @@ export default function WorkflowsPage() {
                     >
                       History
                     </a>
+                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleTogglePin(w.id, w.isPinned); }}
+                      disabled={pinningId === w.id}
+                      style={{ fontSize: 12, color: w.isPinned ? "var(--color-accent)" : "var(--color-text-muted)", background: "none", border: "none", cursor: pinningId === w.id ? "default" : "pointer", padding: "2px 6px" }}
+                    >
+                      {pinningId === w.id ? "…" : w.isPinned ? "Unpin" : "Pin"}
+                    </button>
                     <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); startRename(w.id, w.name); }}

@@ -17,6 +17,7 @@ export async function GET() {
       name: schema.workflows.name,
       description: schema.workflows.description,
       tags: schema.workflows.tags,
+      isPinned: schema.workflows.isPinned,
       lastRunStatus: schema.workflows.lastRunStatus,
       lastRunAt: schema.workflows.lastRunAt,
       updatedAt: schema.workflows.updatedAt,

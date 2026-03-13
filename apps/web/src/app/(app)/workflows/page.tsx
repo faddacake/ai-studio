@@ -31,15 +31,23 @@ export default function WorkflowsPage() {
   const [renameInput, setRenameInput] = useState("");
   const [renameSaving, setRenameSaving] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() =>
+    typeof window !== "undefined" ? (localStorage.getItem("aiStudio.workflow.search") ?? "") : "",
+  );
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState("");
   const [tagSaving, setTagSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<"updated" | "lastRun" | "name">("updated");
+  const [activeTag, setActiveTag] = useState<string | null>(() =>
+    typeof window !== "undefined" ? (localStorage.getItem("aiStudio.workflow.tag") || null) : null,
+  );
+  const [sortBy, setSortBy] = useState<"updated" | "lastRun" | "name">(() => {
+    if (typeof window === "undefined") return "updated";
+    const v = localStorage.getItem("aiStudio.workflow.sort");
+    return (v === "lastRun" || v === "name") ? v : "updated";
+  });
 
   const fetchWorkflows = useCallback(async () => {
     const res = await fetch("/api/workflows");
@@ -49,9 +57,14 @@ export default function WorkflowsPage() {
     setLoading(false);
   }, []);
 
+  useEffect(() => { fetchWorkflows(); }, [fetchWorkflows]);
+
+  useEffect(() => { localStorage.setItem("aiStudio.workflow.search", search); }, [search]);
   useEffect(() => {
-    fetchWorkflows();
-  }, [fetchWorkflows]);
+    if (activeTag) localStorage.setItem("aiStudio.workflow.tag", activeTag);
+    else localStorage.removeItem("aiStudio.workflow.tag");
+  }, [activeTag]);
+  useEffect(() => { localStorage.setItem("aiStudio.workflow.sort", sortBy); }, [sortBy]);
 
   function startRename(id: string, currentName: string) {
     setRenamingId(id);

@@ -608,6 +608,36 @@ export default function WorkflowsPage() {
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, [showShortcutHelp]);
 
+  // Refresh run statuses when the user returns to the page from another tab/window.
+  // Merges only changed lastRunStatus/lastRunAt to avoid clobbering in-progress edits.
+  const lastRunRefreshRef = useRef<number>(0);
+  useEffect(() => {
+    function refresh() {
+      const now = Date.now();
+      if (now - lastRunRefreshRef.current < 500) return;
+      lastRunRefreshRef.current = now;
+      fetch("/api/workflows")
+        .then((r) => r.ok ? r.json() : null)
+        .then((rows: Workflow[] | null) => {
+          if (!rows) return;
+          setWorkflows((prev) => prev.map((w) => {
+            const fresh = rows.find((r) => r.id === w.id);
+            if (!fresh) return w;
+            if (fresh.lastRunStatus === w.lastRunStatus && fresh.lastRunAt === w.lastRunAt) return w;
+            return { ...w, lastRunStatus: fresh.lastRunStatus, lastRunAt: fresh.lastRunAt };
+          }));
+        })
+        .catch(() => { /* silent */ });
+    }
+    function onVisibility() { if (document.visibilityState === "visible") refresh(); }
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
+
   return (
     <div style={{ padding: 32 }}>
       <div

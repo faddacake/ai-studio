@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-12
-Session: Node Output Persistence — Outputs Survive Page Refresh via DB
+Session: Historical Run Detail Page at /workflows/:id/history/:runId
 
 ---
 
@@ -10,6 +10,15 @@ Session: Node Output Persistence — Outputs Survive Page Refresh via DB
 Primary Task:
 Provider-backed workflow nodes now fail with a clear, actionable error when no API key is configured,
 instead of silently producing mock images.
+
+Completed (Session 66 — committed as `35c8c0e`):
+- [x] Built GET /api/workflows/:id/runs/:runId — returns run record, nodeExecution rows sorted by startedAt, and nodeId→label map from graphSnapshot
+- [x] Built /workflows/:id/history/:runId page — full historical run detail: run header (status, timestamps, duration, cost), node execution cards (status, duration, cost, provider/model, error), and node outputs section
+- [x] Outputs rendered using existing /api/outputs DB-fallback endpoint — images inline, image grids for candidate collections, text blocks, primitives, formatted JSON
+- [x] ArtifactImage component has onError fallback — shows filename + dimensions when /tmp file is no longer available
+- [x] Updated /history list page — added "View" link on each run card
+- [x] No coordinator memory dependency — entire page works from DB-persisted data
+- [x] Limitation: cancelled nodes have no nodeExecution record; image files at /tmp are transient
 
 Completed (Session 65 — committed as `8bdd8e6`):
 - [x] Identified nodeExecutions table existed in schema but was never written to

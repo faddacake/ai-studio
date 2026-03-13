@@ -93,6 +93,7 @@ export default function WorkflowsPage() {
   const [bulkExportProgress, setBulkExportProgress] = useState<{ done: number; total: number } | null>(null);
   const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+  const shortcutHelpRef = useRef<HTMLDivElement | null>(null);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -578,6 +579,17 @@ export default function WorkflowsPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [filtered, bulkWorking, activeWorkflowId, duplicatingId, deletingId]);
 
+  useEffect(() => {
+    if (!showShortcutHelp) return;
+    function onMouseDown(e: MouseEvent) {
+      if (shortcutHelpRef.current && !shortcutHelpRef.current.contains(e.target as Node)) {
+        setShowShortcutHelp(false);
+      }
+    }
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [showShortcutHelp]);
+
   return (
     <div style={{ padding: 32 }}>
       <div
@@ -613,7 +625,7 @@ export default function WorkflowsPage() {
               {templates.length} saved template{templates.length !== 1 ? "s" : ""}
             </button>
           )}
-          <div style={{ position: "relative" }}>
+          <div ref={shortcutHelpRef} style={{ position: "relative" }}>
             <button
               onClick={() => setShowShortcutHelp((v) => !v)}
               title="Keyboard shortcuts"

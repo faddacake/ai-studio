@@ -272,7 +272,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       if (!res.ok) throw new Error(`Failed to start run: ${res.status}`);
       const { id: runId } = (await res.json()) as { id: string };
 
-      set({ currentRunId: runId, debuggerOpen: true });
+      // Clear stale snapshot immediately so the debugger doesn't flash the
+      // previous run's state while the SSE connection is being established.
+      set({ currentRunId: runId, debuggerOpen: true, debugSnapshot: null });
     } catch (err) {
       console.error("[runWorkflow]", err);
     } finally {

@@ -489,12 +489,20 @@ function CanvasInner() {
       )}
 
       {/* Bottom: Debugger Panel (slides up) */}
-      {debuggerOpen && debugSnapshot && (
+      {debuggerOpen && (
         <div className="absolute bottom-0 left-0 right-0 z-20 max-h-[40vh] overflow-y-auto border-t border-neutral-800 bg-neutral-950">
-          <RunDebuggerPanel
-            snapshot={debugSnapshot}
-            onNodeClick={(nodeId) => selectNode(nodeId)}
-          />
+          {debugSnapshot ? (
+            <RunDebuggerPanel
+              snapshot={debugSnapshot}
+              onNodeClick={(nodeId) => selectNode(nodeId)}
+            />
+          ) : (
+            <div className="px-4 py-4 text-xs text-neutral-500">
+              {currentRunId
+                ? "Connecting to run…"
+                : "No run yet — click \u201cRun Workflow\u201d to start."}
+            </div>
+          )}
         </div>
       )}
 

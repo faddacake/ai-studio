@@ -155,7 +155,9 @@ export default function WorkflowsPage() {
   const fetchWorkflows = useCallback(async () => {
     const res = await fetch("/api/workflows");
     if (res.ok) {
-      setWorkflows(await res.json());
+      const data = await res.json();
+      setWorkflows(data);
+      if (data.length > 0) localStorage.setItem("aiStudio.workflow.hadAny", "1");
     }
     setLoading(false);
   }, []);
@@ -633,12 +635,25 @@ export default function WorkflowsPage() {
             backgroundColor: "var(--color-surface)",
           }}
         >
-          <p style={{ fontSize: 16, color: "var(--color-text-secondary)", marginBottom: 4 }}>
-            No workflows yet.
-          </p>
-          <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 20 }}>
-            Create your first one to get started.
-          </p>
+          {typeof window !== "undefined" && localStorage.getItem("aiStudio.workflow.hadAny") === "1" ? (
+            <>
+              <p style={{ fontSize: 16, color: "var(--color-text-secondary)", marginBottom: 4 }}>
+                No workflows right now.
+              </p>
+              <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 20 }}>
+                You had workflows here before — create a new one to get started again.
+              </p>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: 16, color: "var(--color-text-secondary)", marginBottom: 4 }}>
+                No workflows yet.
+              </p>
+              <p style={{ fontSize: 14, color: "var(--color-text-muted)", marginBottom: 20 }}>
+                Create your first one to get started.
+              </p>
+            </>
+          )}
           <button
             onClick={() => setShowModal(true)}
             style={{

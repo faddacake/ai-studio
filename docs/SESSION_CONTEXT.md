@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-12
-Session: Live Run Event Streaming — SSE Audit and UX Gap Fixes
+Session: Run Outputs Viewer Added to Workflow Debugger
 
 ---
 
@@ -10,6 +10,15 @@ Session: Live Run Event Streaming — SSE Audit and UX Gap Fixes
 Primary Task:
 Provider-backed workflow nodes now fail with a clear, actionable error when no API key is configured,
 instead of silently producing mock images.
+
+Completed (Session 64 — committed as `9adfaac`):
+- [x] Audited run output data path: debugSnapshot has outputKeys only (no values); /api/outputs returns full values; /api/artifacts?path= serves local image files
+- [x] Built RunOutputsPanel component — fetches from outputs endpoint when completedCount increases; renders: ArtifactRef images inline, candidate collections as image grids, strings as text blocks, primitives inline, complex objects as formatted JSON
+- [x] Added Nodes/Outputs tab bar to WorkflowCanvas debugger bottom panel
+- [x] Outputs ordered by topological execution order from snapshot.executionOrder
+- [x] No backend changes needed — /api/outputs and /api/artifacts already existed
+- [x] Limitation: outputs are in-memory only (coordinator state); not available after page refresh or after coordinator recycles the run
+- [x] Provider failure errors show in Nodes tab via expanded node error block; Outputs tab shows nothing for failed nodes (correct — no output to show)
 
 Completed (Session 63 — committed as `853cc05`):
 - [x] Audited the full SSE streaming stack — backend endpoint, hooks, RunDebuggerPanel, WorkflowCanvas integration all fully implemented

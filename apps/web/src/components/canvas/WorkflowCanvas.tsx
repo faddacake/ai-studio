@@ -104,6 +104,29 @@ function CanvasInner() {
     [],
   );
 
+  // ── Export workflow ───────────────────────────────────────────────────────
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    if (!meta?.id || exporting) return;
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/workflows/${meta.id}/export`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const match = cd.match(/filename="([^"]+)"/);
+      a.download = match?.[1] ?? `${meta.name}.workflow.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }, [meta, exporting]);
+
   // Subscribe to SSE run events — updates debugSnapshot in the store,
   // which drives the status dots on CustomNode and the RunDebuggerPanel.
   useRunEvents(meta?.id ?? "", currentRunId);
@@ -441,6 +464,15 @@ function CanvasInner() {
             className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-neutral-300"
           >
             Save as Template
+          </button>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={!meta || exporting}
+            title={!meta ? "No workflow loaded" : undefined}
+            className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-neutral-300 disabled:cursor-default disabled:text-neutral-600"
+          >
+            {exporting ? "Exporting…" : "Export"}
           </button>
           <span className="h-4 w-px bg-neutral-700 mx-1" aria-hidden="true" />
           <button

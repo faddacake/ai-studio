@@ -32,6 +32,7 @@ import {
 import { getRunCoordinator } from "@/lib/runCoordinator";
 import { initializeNodeRegistry } from "@/lib/nodeRegistryInit";
 import { resolveProviderKey } from "@/lib/providers/resolveProviderKey";
+import { ARTIFACTS_DIR } from "@/lib/artifactStorage";
 
 // ── Registry bootstrap (idempotent) ──────────────────────────────────────────
 
@@ -83,7 +84,7 @@ function ensureEngineBootstrapped(): void {
       const format = generated.mimeType.replace(/^image\//, "") === "jpeg" ? "jpeg" : "png";
       const artifactRef = await writeArtifact({
         buffer: generated.buffer,
-        outputDir: context.outputDir ?? "/tmp/aistudio-runs",
+        outputDir: context.outputDir ?? ARTIFACTS_DIR,
         runId: context.runId,
         nodeId: context.nodeId,
         suffix: "generated",
@@ -300,7 +301,7 @@ export async function POST(
 
   // Create run
   const runId = randomUUID();
-  const outputDir = path.join("/tmp/aistudio-runs", runId);
+  const outputDir = path.join(ARTIFACTS_DIR, runId);
   const coordinator = getRunCoordinator();
 
   coordinator.createRun({

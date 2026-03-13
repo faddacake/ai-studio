@@ -4,12 +4,23 @@ export const runtime = "nodejs";
  * GET /api/artifacts?path=<absolute-path>
  *
  * Serves a local artifact file produced by the engine (e.g. generated images).
- * Only files under /tmp/aistudio-runs/ are allowed — all other paths are rejected.
+ *
+ * Allowed prefixes:
+ *   1. ARTIFACTS_DIR (apps/web/data/artifacts/) — durable storage, survives restarts
+ *   2. /tmp/aistudio-runs/                      — legacy transient storage; refs
+ *      written before the durable-storage change still work as long as the
+ *      server has not restarted since those files were written.
+ *
+ * All other paths are rejected with 403.
  */
 import fs from "node:fs/promises";
 import path from "node:path";
+import { ARTIFACTS_DIR } from "@/lib/artifactStorage";
 
-const ALLOWED_PREFIX = path.normalize("/tmp/aistudio-runs/");
+const ALLOWED_PREFIXES = [
+  path.normalize(ARTIFACTS_DIR) + path.sep,
+  path.normalize("/tmp/aistudio-runs") + path.sep,
+];
 
 const MIME_BY_EXT: Record<string, string> = {
   ".png":  "image/png",
@@ -28,7 +39,8 @@ export async function GET(req: Request) {
 
   // Normalize to resolve any ".." components and validate the prefix
   const normalized = path.normalize(filePath);
-  if (!normalized.startsWith(ALLOWED_PREFIX)) {
+  const allowed = ALLOWED_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+  if (!allowed) {
     return new Response("Forbidden", { status: 403 });
   }
 

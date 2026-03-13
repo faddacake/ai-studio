@@ -25,6 +25,7 @@ export default function WorkflowsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const fetchWorkflows = useCallback(async () => {
     const res = await fetch("/api/workflows");
@@ -73,6 +74,15 @@ export default function WorkflowsPage() {
     }
   }
 
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? workflows.filter(
+        (w) =>
+          w.name.toLowerCase().includes(q) ||
+          (w.description ?? "").toLowerCase().includes(q),
+      )
+    : workflows;
+
   return (
     <div style={{ padding: 32 }}>
       <div
@@ -80,7 +90,7 @@ export default function WorkflowsPage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: 32,
+          marginBottom: workflows.length > 0 ? 16 : 32,
         }}
       >
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--color-text-primary)" }}>
@@ -102,6 +112,28 @@ export default function WorkflowsPage() {
           + New Workflow
         </button>
       </div>
+
+      {workflows.length > 0 && (
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search workflows…"
+          style={{
+            width: "100%",
+            maxWidth: 360,
+            padding: "8px 12px",
+            marginBottom: 20,
+            backgroundColor: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+            borderRadius: 8,
+            color: "var(--color-text-primary)",
+            fontSize: 14,
+            outline: "none",
+            boxSizing: "border-box",
+          }}
+        />
+      )}
 
       {deleteError && (
         <div style={{
@@ -142,9 +174,13 @@ export default function WorkflowsPage() {
             Create your first one to get started.
           </p>
         </div>
+      ) : filtered.length === 0 ? (
+        <p style={{ fontSize: 14, color: "var(--color-text-muted)" }}>
+          No workflows match &ldquo;{search.trim()}&rdquo;.
+        </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {workflows.map((w) => (
+          {filtered.map((w) => (
             <Link
               key={w.id}
               href={`/workflows/${w.id}`}

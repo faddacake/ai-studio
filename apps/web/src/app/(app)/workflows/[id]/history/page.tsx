@@ -164,7 +164,7 @@ export default function HistoryPage({
                   </code>
                 </div>
 
-                {/* Right: duration + cost + re-run */}
+                {/* Right: duration + cost + actions */}
                 <div style={{ display: "flex", gap: 16, justifyContent: "flex-end", alignItems: "center" }}>
                   <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                     {durationLabel(run.startedAt, run.completedAt)}
@@ -174,6 +174,16 @@ export default function HistoryPage({
                       ${run.totalCost.toFixed(4)}
                     </span>
                   )}
+                  <Link
+                    href={`/workflows/${id}/history/${run.id}`}
+                    style={{
+                      fontSize: 12, padding: "2px 6px",
+                      color: "var(--color-text-secondary)",
+                      textDecoration: "none",
+                    }}
+                  >
+                    View
+                  </Link>
                   <button
                     onClick={handleRerun}
                     disabled={rerunning}

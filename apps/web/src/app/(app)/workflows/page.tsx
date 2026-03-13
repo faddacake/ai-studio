@@ -26,6 +26,10 @@ export default function WorkflowsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameInput, setRenameInput] = useState("");
+  const [renameSaving, setRenameSaving] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const fetchWorkflows = useCallback(async () => {
@@ -39,6 +43,45 @@ export default function WorkflowsPage() {
   useEffect(() => {
     fetchWorkflows();
   }, [fetchWorkflows]);
+
+  function startRename(id: string, currentName: string) {
+    setRenamingId(id);
+    setRenameInput(currentName);
+    setRenameError(null);
+  }
+
+  function cancelRename() {
+    setRenamingId(null);
+    setRenameInput("");
+    setRenameError(null);
+  }
+
+  async function commitRename(id: string) {
+    const trimmed = renameInput.trim();
+    if (!trimmed) { cancelRename(); return; }
+    const current = workflows.find((w) => w.id === id)?.name ?? "";
+    if (trimmed === current) { cancelRename(); return; }
+
+    setRenameSaving(true);
+    setRenameError(null);
+    try {
+      const res = await fetch(`/api/workflows/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      setWorkflows((prev) =>
+        prev.map((w) => w.id === id ? { ...w, name: trimmed } : w),
+      );
+      setRenamingId(null);
+      setRenameInput("");
+    } catch {
+      setRenameError("Rename failed — please try again");
+    } finally {
+      setRenameSaving(false);
+    }
+  }
 
   async function handleDuplicate(id: string) {
     setDuplicatingId(id);
@@ -215,10 +258,57 @@ export default function WorkflowsPage() {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontWeight: 600, fontSize: 15, color: "var(--color-text-primary)" }}>
-                  {w.name}
-                </span>
-                {w.lastRunStatus && (
+                {renamingId === w.id ? (
+                  <span
+                    style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  >
+                    <input
+                      // eslint-disable-next-line jsx-a11y/no-autofocus
+                      autoFocus
+                      value={renameInput}
+                      onChange={(e) => setRenameInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); commitRename(w.id); }
+                        if (e.key === "Escape") { e.preventDefault(); cancelRename(); }
+                      }}
+                      disabled={renameSaving}
+                      style={{
+                        flex: 1, maxWidth: 320,
+                        padding: "3px 8px",
+                        backgroundColor: "var(--color-bg-primary)",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: 6,
+                        color: "var(--color-text-primary)",
+                        fontSize: 15,
+                        fontWeight: 600,
+                        outline: "none",
+                      }}
+                    />
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); commitRename(w.id); }}
+                      disabled={renameSaving || !renameInput.trim()}
+                      style={{ fontSize: 12, fontWeight: 600, color: "var(--color-accent)", background: "none", border: "none", cursor: renameSaving ? "default" : "pointer", padding: "2px 4px" }}
+                    >
+                      {renameSaving ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); cancelRename(); }}
+                      disabled={renameSaving}
+                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 4px" }}
+                    >
+                      Cancel
+                    </button>
+                    {renameError && (
+                      <span style={{ fontSize: 12, color: "var(--color-error)" }}>{renameError}</span>
+                    )}
+                  </span>
+                ) : (
+                  <span style={{ fontWeight: 600, fontSize: 15, color: "var(--color-text-primary)" }}>
+                    {w.name}
+                  </span>
+                )}
+                {w.lastRunStatus && renamingId !== w.id && (
                   <StatusBadge status={w.lastRunStatus} />
                 )}
               </div>
@@ -257,6 +347,13 @@ export default function WorkflowsPage() {
                     >
                       History
                     </a>
+                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); startRename(w.id, w.name); }}
+                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+                    >
+                      Rename
+                    </button>
                     <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDuplicate(w.id); }}

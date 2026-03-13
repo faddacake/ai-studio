@@ -1,7 +1,7 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-12
-Session: Missing Provider Enforcement — Clear Failure Instead of Silent Mock Fallback
+Session: Live Run Event Streaming — SSE Audit and UX Gap Fixes
 
 ---
 
@@ -10,6 +10,16 @@ Session: Missing Provider Enforcement — Clear Failure Instead of Silent Mock F
 Primary Task:
 Provider-backed workflow nodes now fail with a clear, actionable error when no API key is configured,
 instead of silently producing mock images.
+
+Completed (Session 63 — committed as `853cc05`):
+- [x] Audited the full SSE streaming stack — backend endpoint, hooks, RunDebuggerPanel, WorkflowCanvas integration all fully implemented
+- [x] SSE endpoint: GET /api/workflows/:id/runs/:runId/events — sends "snapshot" (RunDebugSnapshot) + "heartbeat" every 15s; closes on terminal status
+- [x] useRunEvents hook — subscribes to SSE, writes to workflowStore.debugSnapshot; WorkflowCanvas calls it for live updates
+- [x] CustomNode — shows animated status dots (pending/queued/running/completed/failed/cancelled) from debugSnapshot
+- [x] RunDebuggerPanel — tier/flat views, expandable node details, error display, blocked-reason badges; auto-opens on run start
+- [x] Fixed: stale snapshot flashing on new run start — clear debugSnapshot: null in runWorkflow when setting currentRunId
+- [x] Fixed: empty debugger panel when debuggerOpen=true but no snapshot — now shows "Connecting to run…" or "No run yet" placeholder
+- [x] Provider failure errors ("Provider X is not configured...") surface via snapshot.nodes[].error in expanded node view — no extra wiring needed
 
 Completed (Session 62 — committed as `96d9f38`):
 - [x] Audited provider executor and BestOfN generator resolution for silent mock fallback

@@ -583,10 +583,19 @@ export default function WorkflowsPage() {
         e.preventDefault();
         handleTogglePin(w.id, w.isPinned);
       }
+      if (e.key === "r" || e.key === "R") {
+        if (bulkWorking) return;
+        if (!activeWorkflowId) return;
+        if (renamingId) return;
+        const w = filtered.find((x) => x.id === activeWorkflowId);
+        if (!w) return;
+        e.preventDefault();
+        startRename(w.id, w.name);
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [filtered, bulkWorking, activeWorkflowId, duplicatingId, deletingId, pinningId]);
+  }, [filtered, bulkWorking, activeWorkflowId, duplicatingId, deletingId, pinningId, renamingId]);
 
   useEffect(() => {
     if (!showShortcutHelp) return;
@@ -673,6 +682,7 @@ export default function WorkflowsPage() {
                   Keyboard Shortcuts
                 </div>
                 {([
+                  ["R", "Rename focused workflow"],
                   ["E", "Export focused workflow"],
                   ["D", "Duplicate focused workflow"],
                   ["P", "Pin / Unpin focused workflow"],
@@ -1350,7 +1360,7 @@ export default function WorkflowsPage() {
                           {(
                             [
                               [
-                                { label: "Rename", action: () => { setOpenMenuId(null); startRename(w.id, w.name); } },
+                                { label: "Rename  (R)", action: () => { setOpenMenuId(null); startRename(w.id, w.name); } },
                                 { label: "Description", action: () => { setOpenMenuId(null); startEditDesc(w.id, w.description ?? ""); } },
                                 { label: "Tags", action: () => { setOpenMenuId(null); startEditTags(w.id, w.tags ?? []); } },
                               ],

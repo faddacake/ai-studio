@@ -686,6 +686,14 @@ export default function WorkflowsPage() {
           setTimeout(() => setCopiedWorkflowId((prev) => prev === activeWorkflowId ? null : prev), 1500);
         }).catch(() => {});
       }
+      if (e.key === "e" || e.key === "E") {
+        if (bulkWorking) return;
+        if (!activeWorkflowId) return;
+        const w = filtered.find((x) => x.id === activeWorkflowId);
+        if (!w) return;
+        e.preventDefault();
+        handleExport(w.id, w.name);
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);

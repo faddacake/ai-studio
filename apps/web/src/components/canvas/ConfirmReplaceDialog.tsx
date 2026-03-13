@@ -11,6 +11,7 @@
 export interface ConfirmReplaceDialogProps {
   open: boolean;
   templateName?: string;
+  graph?: { nodes: Array<{ type: string }> };
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -18,9 +19,14 @@ export interface ConfirmReplaceDialogProps {
 export function ConfirmReplaceDialog({
   open,
   templateName,
+  graph,
   onCancel,
   onConfirm,
 }: ConfirmReplaceDialogProps) {
+  const nodes = graph?.nodes ?? [];
+  const preview = nodes.length > 0
+    ? `${nodes.length} node${nodes.length !== 1 ? "s" : ""} · ${nodes.map((n) => n.type).join(" → ")}`
+    : null;
   if (!open) return null;
 
   return (
@@ -53,6 +59,9 @@ export function ConfirmReplaceDialog({
             </>
           ) : (
             "Applying this template will replace the current workflow graph."
+          )}
+          {preview && (
+            <p className="mt-2 text-xs text-neutral-500 font-mono">{preview}</p>
           )}
         </div>
 

@@ -595,10 +595,11 @@ function CanvasInner() {
         onConfirm={handleConfirmDelete}
       />
 
-      {/* Confirm replace dialog — shown when dirty canvas + template selected */}
+      {/* Confirm replace dialog — shown when non-empty canvas + template selected */}
       <ConfirmReplaceDialog
         open={pendingTemplate !== null}
         templateName={pendingTemplate?.name}
+        graph={pendingTemplate?.graph}
         onCancel={handleCancelReplace}
         onConfirm={handleConfirmReplace}
       />

@@ -36,6 +36,7 @@ export default function WorkflowsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [runningId, setRunningId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
   const [renameSaving, setRenameSaving] = useState(false);
@@ -312,6 +313,17 @@ export default function WorkflowsPage() {
       }
     } finally {
       setTemplateRenameSaving(false);
+    }
+  }
+
+  async function handleRun(id: string) {
+    if (runningId) return;
+    setRunningId(id);
+    setWorkflows((prev) => prev.map((w) => w.id === id ? { ...w, lastRunStatus: "running", lastRunAt: new Date().toISOString() } : w));
+    try {
+      await fetch(`/api/workflows/${id}/runs`, { method: "POST" });
+    } finally {
+      setRunningId(null);
     }
   }
 
@@ -1349,6 +1361,15 @@ export default function WorkflowsPage() {
                     >
                       History
                     </a>
+                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRun(w.id); }}
+                      disabled={!!runningId}
+                      title={runningId === w.id ? "Run starting…" : "Run workflow"}
+                      style={{ fontSize: 12, color: runningId === w.id ? "var(--color-text-muted)" : "var(--color-success, #4ade80)", background: "none", border: "none", cursor: runningId ? "default" : "pointer", padding: "2px 6px" }}
+                    >
+                      {runningId === w.id ? "Starting…" : "▶ Run"}
+                    </button>
                     <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleTogglePin(w.id, w.isPinned); }}

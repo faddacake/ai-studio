@@ -157,6 +157,32 @@ function makeDispatch(runId: string, outputDir: string): DispatchJob {
         result.cost,
         dispatch,
       );
+
+      // Persist node execution record with outputs to DB.
+      // Non-fatal: a DB error must not interrupt the run.
+      try {
+        const finalState = coordinator.getRun(runId).nodeStates.get(job.nodeId);
+        getDb().insert(schema.nodeExecutions).values({
+          id: randomUUID(),
+          runId: job.runId,
+          nodeId: job.nodeId,
+          status: "completed",
+          attempt: finalState?.attempt ?? 1,
+          cost: result.cost ?? 0,
+          outputs: JSON.stringify(result.outputs),
+          startedAt: finalState?.startedAt
+            ? new Date(finalState.startedAt).toISOString()
+            : undefined,
+          completedAt: finalState?.completedAt
+            ? new Date(finalState.completedAt).toISOString()
+            : undefined,
+          providerId: job.providerId,
+          modelId: job.modelId,
+          createdAt: new Date().toISOString(),
+        }).run();
+      } catch (dbErr) {
+        console.error(`[runs/route] Failed to persist nodeExecution for ${job.nodeId}:`, dbErr);
+      }
     } catch (err) {
       await coordinator.onNodeFailed(
         job.runId,
@@ -164,6 +190,30 @@ function makeDispatch(runId: string, outputDir: string): DispatchJob {
         err instanceof Error ? err.message : String(err),
         dispatch,
       );
+
+      // Persist failed node execution record.
+      try {
+        const finalState = coordinator.getRun(runId).nodeStates.get(job.nodeId);
+        getDb().insert(schema.nodeExecutions).values({
+          id: randomUUID(),
+          runId: job.runId,
+          nodeId: job.nodeId,
+          status: "failed",
+          attempt: finalState?.attempt ?? 1,
+          error: err instanceof Error ? err.message : String(err),
+          startedAt: finalState?.startedAt
+            ? new Date(finalState.startedAt).toISOString()
+            : undefined,
+          completedAt: finalState?.completedAt
+            ? new Date(finalState.completedAt).toISOString()
+            : undefined,
+          providerId: job.providerId,
+          modelId: job.modelId,
+          createdAt: new Date().toISOString(),
+        }).run();
+      } catch (dbErr) {
+        console.error(`[runs/route] Failed to persist nodeExecution failure for ${job.nodeId}:`, dbErr);
+      }
     }
   };
 
@@ -259,9 +309,25 @@ export async function POST(
     workflow: graph,
   });
 
+  // Insert the runs record immediately so nodeExecutions FK references are valid
+  // while the DAG is executing.  Status starts as "running" and is updated to
+  // the final terminal status in the .then() continuation below.
+  const runCreatedAt = new Date().toISOString();
+  db.insert(schema.runs)
+    .values({
+      id: runId,
+      workflowId,
+      status: "running",
+      graphSnapshot: JSON.stringify(graph),
+      graphVersion: 1,
+      totalCost: 0,
+      startedAt: runCreatedAt,
+      createdAt: runCreatedAt,
+    })
+    .run();
+
   // Fire dispatch loop async — response returns immediately.
-  // startRun() resolves only after the full DAG is processed (inline dispatch),
-  // so we persist run outcome to the DB in the .then() continuation.
+  // startRun() resolves only after the full DAG is processed (inline dispatch).
   const dispatch = makeDispatch(runId, outputDir);
   coordinator.startRun(runId, dispatch)
     .then(() => {
@@ -273,19 +339,14 @@ export async function POST(
 
       const db2 = getDb();
 
-      // Write run record to runs table
-      db2.insert(schema.runs)
-        .values({
-          id: runId,
-          workflowId,
+      // Update run record to final terminal status
+      db2.update(schema.runs)
+        .set({
           status: finalRun.status,
-          graphSnapshot: JSON.stringify(graph),
-          graphVersion: 1,
           totalCost: finalRun.totalCost,
-          startedAt: finalRun.startedAt ? new Date(finalRun.startedAt).toISOString() : now,
           completedAt,
-          createdAt: new Date(finalRun.createdAt).toISOString(),
         })
+        .where(eq(schema.runs.id, runId))
         .run();
 
       // Update workflow record with last run outcome

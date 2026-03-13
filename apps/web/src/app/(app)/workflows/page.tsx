@@ -92,6 +92,7 @@ export default function WorkflowsPage() {
   const [bulkWorking, setBulkWorking] = useState(false);
   const [bulkExportProgress, setBulkExportProgress] = useState<{ done: number; total: number } | null>(null);
   const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -544,6 +545,7 @@ export default function WorkflowsPage() {
       if (e.key === "Escape") {
         setSelectedIds(new Set());
         setBulkDeleteConfirm(false);
+        setShowShortcutHelp(false);
       }
       if (e.key === "e" || e.key === "E") {
         if (bulkWorking) return;
@@ -611,6 +613,69 @@ export default function WorkflowsPage() {
               {templates.length} saved template{templates.length !== 1 ? "s" : ""}
             </button>
           )}
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowShortcutHelp((v) => !v)}
+              title="Keyboard shortcuts"
+              aria-label="Keyboard shortcuts"
+              style={{
+                width: 32, height: 32,
+                backgroundColor: showShortcutHelp ? "var(--color-surface-hover)" : "transparent",
+                border: "1px solid var(--color-border)",
+                borderRadius: 8,
+                color: "var(--color-text-muted)",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >
+              ?
+            </button>
+            {showShortcutHelp && (
+              <div
+                role="dialog"
+                aria-label="Keyboard shortcuts reference"
+                style={{
+                  position: "absolute", top: "calc(100% + 8px)", right: 0,
+                  backgroundColor: "var(--color-bg-secondary)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 10,
+                  padding: "12px 16px",
+                  zIndex: 300,
+                  minWidth: 220,
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Keyboard Shortcuts
+                </div>
+                {([
+                  ["E", "Export focused workflow"],
+                  ["D", "Duplicate focused workflow"],
+                  ["Del", "Open delete confirmation"],
+                  ["⌘A / Ctrl A", "Select all"],
+                  ["Esc", "Clear selection"],
+                ] as [string, string][]).map(([key, desc]) => (
+                  <div key={key} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <kbd style={{
+                      display: "inline-block", minWidth: 52,
+                      padding: "2px 6px", borderRadius: 5,
+                      backgroundColor: "var(--color-surface)",
+                      border: "1px solid var(--color-border)",
+                      fontSize: 11, fontFamily: "inherit", fontWeight: 600,
+                      color: "var(--color-text-secondary)",
+                      textAlign: "center",
+                    }}>
+                      {key}
+                    </kbd>
+                    <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{desc}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <label
             style={{
               padding: "10px 16px",

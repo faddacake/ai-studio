@@ -1241,7 +1241,14 @@ export default function WorkflowsPage() {
                   </span>
                 </span>
               ) : w.description ? (
-                <p style={{ fontSize: 13, color: "var(--color-text-muted)", marginTop: 4 }}>
+                <p
+                  title={w.description}
+                  style={{
+                    fontSize: 13, color: "var(--color-text-muted)", marginTop: 4, margin: "4px 0 0",
+                    display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}
+                >
                   {w.description}
                 </p>
               ) : null}

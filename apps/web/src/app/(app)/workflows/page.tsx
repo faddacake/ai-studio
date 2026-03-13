@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -13,6 +13,14 @@ interface Workflow {
   lastRunStatus: string | null;
   lastRunAt: string | null;
   updatedAt: string;
+  createdAt: string;
+}
+
+interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  graph: { nodes: Array<{ id: string; type: string }>; edges: unknown[] };
   createdAt: string;
 }
 
@@ -46,6 +54,13 @@ export default function WorkflowsPage() {
   const [descSaving, setDescSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [starterKey, setStarterKey] = useState<"blank" | "image" | "text" | "template">("blank");
+  const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [savingTemplateId, setSavingTemplateId] = useState<string | null>(null);
+  const [renamingTemplateId, setRenamingTemplateId] = useState<string | null>(null);
+  const [templateRenameInput, setTemplateRenameInput] = useState("");
+  const [templateRenameSaving, setTemplateRenameSaving] = useState(false);
   const [activeTag, setActiveTag] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     const p = new URLSearchParams(window.location.search);
@@ -71,6 +86,7 @@ export default function WorkflowsPage() {
   });
   const [pinningId, setPinningId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkWorking, setBulkWorking] = useState(false);
@@ -162,7 +178,12 @@ export default function WorkflowsPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchWorkflows(); }, [fetchWorkflows]);
+  const fetchTemplates = useCallback(async () => {
+    const res = await fetch("/api/templates");
+    if (res.ok) setTemplates(await res.json());
+  }, []);
+
+  useEffect(() => { fetchWorkflows(); fetchTemplates(); }, [fetchWorkflows, fetchTemplates]);
 
   useEffect(() => {
     if (!openMenuId) return;
@@ -174,6 +195,15 @@ export default function WorkflowsPage() {
       document.removeEventListener("click", close);
       document.removeEventListener("keydown", onKey);
     };
+  }, [openMenuId]);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    const t = setTimeout(() => {
+      const first = menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)");
+      first?.focus();
+    }, 0);
+    return () => clearTimeout(t);
   }, [openMenuId]);
 
   useEffect(() => {
@@ -233,6 +263,48 @@ export default function WorkflowsPage() {
     }
   }
 
+  async function handleSaveAsTemplate(id: string) {
+    setSavingTemplateId(id);
+    try {
+      const res = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceWorkflowId: id }),
+      });
+      if (res.ok) await fetchTemplates();
+    } finally {
+      setSavingTemplateId(null);
+    }
+  }
+
+  async function handleDeleteTemplate(id: string) {
+    await fetch(`/api/templates/${id}`, { method: "DELETE" });
+    setTemplates((prev) => prev.filter((t) => t.id !== id));
+    if (selectedTemplateId === id) {
+      setSelectedTemplateId(null);
+      setStarterKey("blank");
+    }
+  }
+
+  async function handleRenameTemplate(id: string) {
+    const trimmed = templateRenameInput.trim();
+    if (!trimmed || templateRenameSaving) return;
+    setTemplateRenameSaving(true);
+    try {
+      const res = await fetch(`/api/templates/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (res.ok) {
+        setTemplates((prev) => prev.map((t) => t.id === id ? { ...t, name: trimmed } : t));
+        setRenamingTemplateId(null);
+      }
+    } finally {
+      setTemplateRenameSaving(false);
+    }
+  }
+
   async function handleDuplicate(id: string) {
     setDuplicatingId(id);
     try {
@@ -257,15 +329,45 @@ export default function WorkflowsPage() {
     }
   }
 
+  const STARTER_GRAPHS: Record<string, object | undefined> = {
+    blank: undefined,
+    image: {
+      version: 1,
+      nodes: [
+        { id: "tpl-1", type: "prompt-template", data: { label: "Prompt Template", params: { template: "A {{style}} photo of {{subject}}" } }, position: { x: 80, y: 160 } },
+        { id: "gen-1", type: "image-generation", data: { label: "Image Generation", params: {} }, position: { x: 380, y: 160 } },
+        { id: "out-1", type: "output", data: { label: "Result", params: {} }, position: { x: 680, y: 160 } },
+      ],
+      edges: [
+        { id: "e1", source: "tpl-1", target: "gen-1", sourceHandle: "text_out", targetHandle: "prompt_in" },
+        { id: "e2", source: "gen-1", target: "out-1", sourceHandle: "image_out", targetHandle: "input" },
+      ],
+    },
+    text: {
+      version: 1,
+      nodes: [
+        { id: "tpl-1", type: "prompt-template", data: { label: "Prompt Template", params: { template: "Write a {{tone}} post about {{topic}}" } }, position: { x: 80, y: 160 } },
+        { id: "out-1", type: "output", data: { label: "Result", params: {} }, position: { x: 380, y: 160 } },
+      ],
+      edges: [
+        { id: "e1", source: "tpl-1", target: "out-1", sourceHandle: "text_out", targetHandle: "input" },
+      ],
+    },
+  };
+
   async function handleCreate() {
     if (!newName.trim() || creating) return;
     setCreating(true);
     setCreateError(null);
+    let graph: object | undefined = STARTER_GRAPHS[starterKey] as object | undefined;
+    if (starterKey === "template" && selectedTemplateId) {
+      graph = templates.find((t) => t.id === selectedTemplateId)?.graph;
+    }
     try {
       const res = await fetch("/api/workflows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName, description: newDesc }),
+        body: JSON.stringify({ name: newName, description: newDesc, ...(graph ? { graph } : {}) }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -453,6 +555,27 @@ export default function WorkflowsPage() {
           Workflows
         </h1>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {templates.length > 0 && (
+            <button
+              onClick={() => setShowModal(true)}
+              style={{
+                padding: "6px 12px",
+                backgroundColor: "transparent",
+                border: "1px solid var(--color-border)",
+                borderRadius: 20,
+                color: "var(--color-text-muted)",
+                fontSize: 12,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+              }}
+              title="Open New Workflow modal to use saved templates"
+            >
+              <span style={{ opacity: 0.7 }}>📄</span>
+              {templates.length} saved template{templates.length !== 1 ? "s" : ""}
+            </button>
+          )}
           <label
             style={{
               padding: "10px 16px",
@@ -1065,7 +1188,25 @@ export default function WorkflowsPage() {
                       </button>
                       {openMenuId === w.id && (
                         <div
+                          ref={menuRef}
                           onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Enter") return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const buttons = Array.from(
+                              menuRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [],
+                            );
+                            if (buttons.length === 0) return;
+                            const idx = buttons.indexOf(document.activeElement as HTMLButtonElement);
+                            if (e.key === "Enter") {
+                              buttons[idx]?.click();
+                            } else if (e.key === "ArrowDown") {
+                              (buttons[idx + 1] ?? buttons[0]).focus();
+                            } else {
+                              (buttons[idx - 1] ?? buttons[buttons.length - 1]).focus();
+                            }
+                          }}
                           style={{
                             position: "absolute", bottom: "calc(100% + 4px)", right: 0,
                             backgroundColor: "var(--color-bg-secondary)",
@@ -1077,29 +1218,47 @@ export default function WorkflowsPage() {
                         >
                           {(
                             [
-                              { label: "Rename", action: () => { setOpenMenuId(null); startRename(w.id, w.name); } },
-                              { label: "Description", action: () => { setOpenMenuId(null); startEditDesc(w.id, w.description ?? ""); } },
-                              { label: "Tags", action: () => { setOpenMenuId(null); startEditTags(w.id, w.tags ?? []); } },
-                              { label: duplicatingId === w.id ? "Copying…" : "Duplicate", action: () => { setOpenMenuId(null); handleDuplicate(w.id); }, disabled: duplicatingId === w.id },
-                              { label: exportingId === w.id ? "Exporting…" : "Export", action: () => { setOpenMenuId(null); handleExport(w.id, w.name); }, disabled: exportingId === w.id },
-                              { label: "Delete", action: () => { setOpenMenuId(null); setDeletingId(w.id); }, danger: true },
-                            ] as { label: string; action: () => void; disabled?: boolean; danger?: boolean }[]
-                          ).map(({ label, action, disabled, danger }) => (
-                            <button
-                              key={label}
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (!disabled) action(); }}
-                              disabled={disabled}
-                              style={{
-                                display: "block", width: "100%", textAlign: "left",
-                                padding: "8px 14px", fontSize: 13,
-                                color: danger ? "var(--color-error)" : disabled ? "var(--color-text-muted)" : "var(--color-text-secondary)",
-                                background: "none", border: "none",
-                                cursor: disabled ? "default" : "pointer",
-                                borderBottom: "1px solid var(--color-border)",
-                              }}
-                            >
-                              {label}
-                            </button>
+                              [
+                                { label: "Rename", action: () => { setOpenMenuId(null); startRename(w.id, w.name); } },
+                                { label: "Description", action: () => { setOpenMenuId(null); startEditDesc(w.id, w.description ?? ""); } },
+                                { label: "Tags", action: () => { setOpenMenuId(null); startEditTags(w.id, w.tags ?? []); } },
+                              ],
+                              [
+                                { label: duplicatingId === w.id ? "Copying…" : "Duplicate", action: () => { setOpenMenuId(null); handleDuplicate(w.id); }, disabled: duplicatingId === w.id },
+                                { label: exportingId === w.id ? "Exporting…" : "Export", action: () => { setOpenMenuId(null); handleExport(w.id, w.name); }, disabled: exportingId === w.id },
+                              ],
+                              [
+                                { label: savingTemplateId === w.id ? "Saving…" : "Save as Template", action: () => { setOpenMenuId(null); handleSaveAsTemplate(w.id); }, disabled: savingTemplateId === w.id },
+                                { label: "Use Template", action: () => { setOpenMenuId(null); setStarterKey("template"); setSelectedTemplateId(templates[0]?.id ?? null); setShowModal(true); }, disabled: templates.length === 0 },
+                              ],
+                              [
+                                { label: "Delete", action: () => { setOpenMenuId(null); setDeletingId(w.id); }, danger: true },
+                              ],
+                            ] as { label: string; action: () => void; disabled?: boolean; danger?: boolean }[][]
+                          ).map((group, gi) => (
+                            <div key={gi}>
+                              {gi > 0 && (
+                                <div style={{ height: 1, backgroundColor: "var(--color-border)", margin: "4px 0" }} />
+                              )}
+                              {group.map(({ label, action, disabled, danger }) => (
+                                <button
+                                  key={label}
+                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (!disabled) action(); }}
+                                  disabled={disabled}
+                                  onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.backgroundColor = "var(--color-surface-hover)"; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = ""; }}
+                                  style={{
+                                    display: "block", width: "100%", textAlign: "left",
+                                    padding: "8px 14px", fontSize: 13,
+                                    color: danger ? "var(--color-error)" : disabled ? "var(--color-text-muted)" : "var(--color-text-secondary)",
+                                    background: "none", border: "none",
+                                    cursor: disabled ? "default" : "pointer",
+                                  }}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
                           ))}
                         </div>
                       )}
@@ -1125,7 +1284,7 @@ export default function WorkflowsPage() {
             justifyContent: "center",
             zIndex: 50,
           }}
-          onClick={() => { setShowModal(false); setCreateError(null); }}
+          onClick={() => { setShowModal(false); setCreateError(null); setStarterKey("blank"); setSelectedTemplateId(null); setRenamingTemplateId(null); }}
         >
           <div
             style={{
@@ -1133,7 +1292,7 @@ export default function WorkflowsPage() {
               border: "1px solid var(--color-border)",
               borderRadius: 12,
               padding: 24,
-              width: 420,
+              width: 480,
               maxWidth: "90vw",
             }}
             onClick={(e) => e.stopPropagation()}
@@ -1141,6 +1300,131 @@ export default function WorkflowsPage() {
             <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--color-text-primary)", marginBottom: 20 }}>
               New Workflow
             </h2>
+            {/* Starter template chooser */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+              {(
+                [
+                  { key: "blank", label: "Blank", icon: "◻", desc: "Empty canvas" },
+                  { key: "image", label: "Image generation", icon: "🖼", desc: "Prompt → generate → output" },
+                  { key: "text", label: "Text pipeline", icon: "✏", desc: "Template → text output" },
+                ] as const
+              ).map(({ key, label, icon, desc }) => (
+                <button
+                  key={key}
+                  onClick={() => { setStarterKey(key); setSelectedTemplateId(null); }}
+                  style={{
+                    flex: 1,
+                    padding: "10px 8px",
+                    backgroundColor: starterKey === key ? "rgba(var(--color-accent-rgb, 99,102,241),0.12)" : "var(--color-surface)",
+                    border: starterKey === key ? "1.5px solid var(--color-accent)" : "1px solid var(--color-border)",
+                    borderRadius: 8,
+                    color: starterKey === key ? "var(--color-accent)" : "var(--color-text-secondary)",
+                    fontSize: 12,
+                    fontWeight: starterKey === key ? 600 : 400,
+                    cursor: "pointer",
+                    textAlign: "center",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  <div style={{ fontSize: 18, marginBottom: 4 }}>{icon}</div>
+                  <div style={{ fontWeight: 600, marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 11, opacity: 0.75 }}>{desc}</div>
+                </button>
+              ))}
+            </div>
+            {/* Saved templates section */}
+            {templates.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                  Saved Templates
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" }}>
+                  {templates.map((t) => {
+                    const isRenaming = renamingTemplateId === t.id;
+                    const isSelected = selectedTemplateId === t.id;
+                    return (
+                      <div
+                        key={t.id}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "8px 10px",
+                          backgroundColor: isSelected ? "rgba(var(--color-accent-rgb, 99,102,241),0.10)" : "var(--color-surface)",
+                          border: isSelected ? "1.5px solid var(--color-accent)" : "1px solid var(--color-border)",
+                          borderRadius: 7, cursor: isRenaming ? "default" : "pointer",
+                        }}
+                        onClick={() => { if (!isRenaming) { setSelectedTemplateId(t.id); setStarterKey("template"); } }}
+                      >
+                        <span style={{ fontSize: 14, flexShrink: 0 }}>📄</span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          {isRenaming ? (
+                            <input
+                              value={templateRenameInput}
+                              onChange={(e) => setTemplateRenameInput(e.target.value)}
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleRenameTemplate(t.id);
+                                if (e.key === "Escape") setRenamingTemplateId(null);
+                              }}
+                              style={{
+                                width: "100%", padding: "2px 6px", fontSize: 13,
+                                backgroundColor: "var(--color-bg-secondary)",
+                                border: "1px solid var(--color-accent)",
+                                borderRadius: 4, color: "var(--color-text-primary)",
+                                outline: "none",
+                              }}
+                            />
+                          ) : (
+                            <>
+                              <span style={{ fontSize: 13, fontWeight: isSelected ? 600 : 400, color: isSelected ? "var(--color-accent)" : "var(--color-text-primary)", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {t.name}
+                              </span>
+                              <span style={{ fontSize: 11, color: "var(--color-text-muted)", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {templateGraphPreview(t.graph)}
+                              </span>
+                            </>
+                          )}
+                        </span>
+                        {isRenaming ? (
+                          <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleRenameTemplate(t.id); }}
+                              disabled={templateRenameSaving}
+                              style={{ background: "none", border: "none", color: "var(--color-accent)", cursor: "pointer", fontSize: 11, padding: "0 2px", fontWeight: 600 }}
+                            >
+                              {templateRenameSaving ? "…" : "Save"}
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setRenamingTemplateId(null); }}
+                              style={{ background: "none", border: "none", color: "var(--color-text-muted)", cursor: "pointer", fontSize: 11, padding: "0 2px" }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", gap: 2, flexShrink: 0, opacity: 0.6 }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setRenamingTemplateId(t.id); setTemplateRenameInput(t.name); }}
+                              title="Rename template"
+                              style={{ background: "none", border: "none", color: "var(--color-text-muted)", cursor: "pointer", fontSize: 12, padding: "0 3px", lineHeight: 1 }}
+                            >
+                              ✎
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(t.id); }}
+                              title="Remove template"
+                              style={{ background: "none", border: "none", color: "var(--color-text-muted)", cursor: "pointer", fontSize: 14, padding: "0 2px", lineHeight: 1 }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {createError && (
               <div style={{
                 marginBottom: 16, padding: "10px 14px", borderRadius: 8,
@@ -1200,7 +1484,7 @@ export default function WorkflowsPage() {
             </label>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button
-                onClick={() => { setShowModal(false); setCreateError(null); }}
+                onClick={() => { setShowModal(false); setCreateError(null); setStarterKey("blank"); setSelectedTemplateId(null); setRenamingTemplateId(null); }}
                 style={{
                   padding: "9px 18px",
                   backgroundColor: "transparent",
@@ -1248,6 +1532,13 @@ const RUN_DOT_COLOR: Record<string, string> = {
   budget_exceeded: "#facc15",
   pending:         "#facc15",
 };
+
+function templateGraphPreview(graph: WorkflowTemplate["graph"]): string {
+  const nodes = graph?.nodes ?? [];
+  if (nodes.length === 0) return "Empty graph";
+  const chain = nodes.map((n) => n.type).join(" → ");
+  return `${nodes.length} node${nodes.length !== 1 ? "s" : ""} · ${chain}`;
+}
 
 function formatTimeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();

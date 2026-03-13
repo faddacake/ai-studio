@@ -1,15 +1,78 @@
 # SESSION CONTEXT — AI Studio
 
-Date: 2026-03-12
-Session: Durable Artifact Storage — Images Now Survive Server Restarts
+Date: 2026-03-13
+Session: Workflow Card Overflow Menu — Use Template, Grouping, Hover, Keyboard Navigation
 
 ---
 
 ## 1. Current Focus
 
 Primary Task:
-Provider-backed workflow nodes now fail with a clear, actionable error when no API key is configured,
-instead of silently producing mock images.
+The workflow card overflow menu has been fully refined with new capabilities, interaction polish,
+and keyboard accessibility. The workflows list page is the current stable baseline.
+
+Completed (Session 72 — Update SESSION_CONTEXT.md baseline after overflow menu series):
+- [x] Appended new section documenting finalized overflow-menu structure and capabilities
+- [x] Recorded grouped action layout, visual separators, hover highlight, and keyboard navigation
+- [x] Updated header date and session title to reflect 2026-03-13 work
+
+Completed (Session 71 — Keyboard Navigation for Workflow Card Overflow Menu):
+- [x] Added `useRef` to React import; declared `menuRef = useRef<HTMLDivElement | null>(null)`
+- [x] Added `useEffect` that auto-focuses first enabled menu button when `openMenuId` changes (zero-timeout for post-render)
+- [x] Attached `ref={menuRef}` to the menu container `<div>`
+- [x] Added `onKeyDown` handler to menu container: ArrowDown/ArrowUp cycle focus through `button:not(:disabled)` with wraparound; Enter clicks the focused button
+- [x] Escape already handled by existing document-level listener — no duplication
+- [x] Separator `<div>` elements are naturally skipped (querySelectorAll targets buttons only)
+- [x] TypeCheck clean
+
+Completed (Session 70 — Hover Highlight for Overflow Menu Buttons):
+- [x] Added `onMouseEnter`/`onMouseLeave` to each menu button
+- [x] Hover applies `var(--color-surface-hover)` background; guarded by `!disabled` so disabled items receive no highlight
+- [x] `onMouseLeave` clears inline background to empty string, restoring `background: "none"` from style prop
+- [x] All group separators, click handlers, and danger styling unchanged
+- [x] TypeCheck clean
+
+Completed (Session 69 — Group Separators for Overflow Menu):
+- [x] Restructured menu from flat array to array-of-groups (four groups)
+- [x] Group 1 — Primary edit: Rename, Description, Tags
+- [x] Group 2 — Workflow actions: Duplicate, Export
+- [x] Group 3 — Template actions: Save as Template, Use Template
+- [x] Group 4 — Destructive: Delete
+- [x] 1px `var(--color-border)` separator `<div>` with `margin: "4px 0"` rendered between groups via `gi > 0` guard
+- [x] Removed per-button `borderBottom` line (replaced by group separators)
+- [x] TypeCheck clean
+
+Completed (Session 68 — Add "Use Template" to Workflow Card Overflow Menu):
+- [x] Added "Use Template" menu item between "Save as Template" and "Export"
+- [x] Action: closes menu, sets `starterKey = "template"`, preselects `templates[0]?.id`, opens create-workflow modal
+- [x] Item is disabled when `templates.length === 0` — no confusing dead action
+- [x] Reuses all existing template-selection logic in the modal (no new creation flow)
+- [x] All previous overflow actions preserved: Rename, Description, Tags, Duplicate, Save as Template, Export, Delete
+- [x] TypeCheck clean
+
+---
+
+### Workflows Page — Current Stable Baseline (2026-03-13)
+
+**Overflow menu structure** (`apps/web/src/app/(app)/workflows/page.tsx`):
+- Four logical action groups with 1px `var(--color-border)` separators between groups
+- Group 1: Rename · Description · Tags
+- Group 2: Duplicate · Export
+- Group 3: Save as Template · Use Template (disabled when no templates exist)
+- Group 4: Delete (danger styling)
+
+**Interaction feedback**:
+- Hover applies `var(--color-surface-hover)` background on enabled buttons only
+- Disabled items (e.g. Use Template with no templates) receive no hover state
+
+**Accessibility / keyboard**:
+- Menu opens → first enabled button auto-focused (zero-timeout useEffect)
+- ArrowDown / ArrowUp: cycle focus through enabled buttons with wraparound
+- Enter: activates focused item via `.click()`
+- Escape: closes menu (document-level keydown listener)
+- Separator `<div>` elements are non-focusable and skipped during navigation
+
+---
 
 Completed (Session 67 — committed as `f3fdcce`):
 - [x] Identified all /tmp/aistudio-runs usages: runs/route.ts (outputDir) and artifacts/route.ts (ALLOWED_PREFIX)

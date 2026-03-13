@@ -553,10 +553,19 @@ export default function WorkflowsPage() {
         e.preventDefault();
         handleExport(w.id, w.name);
       }
+      if (e.key === "d" || e.key === "D") {
+        if (bulkWorking) return;
+        if (!activeWorkflowId) return;
+        if (duplicatingId) return;
+        const w = filtered.find((x) => x.id === activeWorkflowId);
+        if (!w) return;
+        e.preventDefault();
+        handleDuplicate(w.id);
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [filtered, bulkWorking, activeWorkflowId]);
+  }, [filtered, bulkWorking, activeWorkflowId, duplicatingId]);
 
   return (
     <div style={{ padding: 32 }}>
@@ -1250,7 +1259,7 @@ export default function WorkflowsPage() {
                                 { label: "Tags", action: () => { setOpenMenuId(null); startEditTags(w.id, w.tags ?? []); } },
                               ],
                               [
-                                { label: duplicatingId === w.id ? "Copying…" : "Duplicate", action: () => { setOpenMenuId(null); handleDuplicate(w.id); }, disabled: duplicatingId === w.id },
+                                { label: duplicatingId === w.id ? "Copying…" : "Duplicate  (D)", action: () => { setOpenMenuId(null); handleDuplicate(w.id); }, disabled: duplicatingId === w.id },
                                 { label: exportingId === w.id ? "Exporting…" : "Export  (E)", action: () => { setOpenMenuId(null); handleExport(w.id, w.name); }, disabled: exportingId === w.id },
                               ],
                               [

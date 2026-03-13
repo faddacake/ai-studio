@@ -38,6 +38,7 @@ export default function WorkflowsPage() {
   const [tagSaving, setTagSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
 
   const fetchWorkflows = useCallback(async () => {
     const res = await fetch("/api/workflows");
@@ -220,15 +221,19 @@ export default function WorkflowsPage() {
     }
   }
 
+  const allTags = Array.from(
+    new Set(workflows.flatMap((w) => w.tags ?? []).filter(Boolean)),
+  ).sort();
+
   const q = search.trim().toLowerCase();
-  const filtered = q
-    ? workflows.filter(
-        (w) =>
-          w.name.toLowerCase().includes(q) ||
-          (w.description ?? "").toLowerCase().includes(q) ||
-          (w.tags ?? []).some((t) => t.toLowerCase().includes(q)),
-      )
-    : workflows;
+  const filtered = workflows.filter((w) => {
+    const matchesSearch = !q ||
+      w.name.toLowerCase().includes(q) ||
+      (w.description ?? "").toLowerCase().includes(q) ||
+      (w.tags ?? []).some((t) => t.toLowerCase().includes(q));
+    const matchesTag = activeTag === null || (w.tags ?? []).includes(activeTag);
+    return matchesSearch && matchesTag;
+  });
 
   return (
     <div style={{ padding: 32 }}>
@@ -298,7 +303,7 @@ export default function WorkflowsPage() {
             width: "100%",
             maxWidth: 360,
             padding: "8px 12px",
-            marginBottom: 20,
+            marginBottom: allTags.length > 0 ? 12 : 20,
             backgroundColor: "var(--color-surface)",
             border: "1px solid var(--color-border)",
             borderRadius: 8,
@@ -308,6 +313,37 @@ export default function WorkflowsPage() {
             boxSizing: "border-box",
           }}
         />
+      )}
+
+      {allTags.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 20 }}>
+          <button
+            onClick={() => setActiveTag(null)}
+            style={{
+              fontSize: 12, padding: "3px 10px", borderRadius: 6, border: "1px solid var(--color-border)",
+              backgroundColor: activeTag === null ? "var(--color-text-secondary)" : "var(--color-surface)",
+              color: activeTag === null ? "var(--color-bg-primary)" : "var(--color-text-secondary)",
+              cursor: "pointer", fontWeight: activeTag === null ? 600 : 400,
+            }}
+          >
+            All
+          </button>
+          {allTags.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+              style={{
+                fontSize: 12, padding: "3px 10px", borderRadius: 6, border: "1px solid",
+                borderColor: activeTag === tag ? "var(--color-accent)" : "var(--color-border)",
+                backgroundColor: activeTag === tag ? "var(--color-accent)" : "var(--color-surface)",
+                color: activeTag === tag ? "#fff" : "var(--color-text-secondary)",
+                cursor: "pointer", fontWeight: activeTag === tag ? 600 : 400,
+              }}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
       )}
 
       {(deleteError || importError) && (
@@ -479,20 +515,18 @@ export default function WorkflowsPage() {
                   </button>
                 </span>
               ) : (w.tags ?? []).length > 0 ? (
-                <div
-                  style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); startEditTags(w.id, w.tags ?? []); }}
-                >
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
                   {(w.tags ?? []).map((tag) => (
                     <span
                       key={tag}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveTag(tag); }}
                       style={{
                         fontSize: 11,
                         padding: "2px 7px",
                         borderRadius: 4,
-                        backgroundColor: "var(--color-accent)18",
-                        color: "var(--color-accent)",
-                        border: "1px solid var(--color-accent)30",
+                        backgroundColor: activeTag === tag ? "var(--color-accent)" : "var(--color-accent)18",
+                        color: activeTag === tag ? "#fff" : "var(--color-accent)",
+                        border: `1px solid ${activeTag === tag ? "var(--color-accent)" : "var(--color-accent)30"}`,
                         cursor: "pointer",
                       }}
                     >

@@ -70,6 +70,64 @@ export default function WorkflowsPage() {
     return localStorage.getItem("aiStudio.workflow.pinned") === "1";
   });
   const [pinningId, setPinningId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [bulkWorking, setBulkWorking] = useState(false);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+    setBulkDeleteConfirm(false);
+  }
+
+  async function handleBulkPin(pin: boolean) {
+    setBulkWorking(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch(`/api/workflows/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isPinned: pin }),
+        }),
+      ));
+      setWorkflows((prev) => prev.map((w) => selectedIds.has(w.id) ? { ...w, isPinned: pin } : w));
+      clearSelection();
+    } finally {
+      setBulkWorking(false);
+    }
+  }
+
+  async function handleBulkDelete() {
+    setBulkWorking(true);
+    try {
+      await Promise.all([...selectedIds].map((id) =>
+        fetch(`/api/workflows/${id}`, { method: "DELETE" }),
+      ));
+      setWorkflows((prev) => prev.filter((w) => !selectedIds.has(w.id)));
+      clearSelection();
+    } finally {
+      setBulkWorking(false);
+    }
+  }
+
+  async function handleBulkExport() {
+    setBulkWorking(true);
+    try {
+      for (const id of selectedIds) {
+        const w = workflows.find((x) => x.id === id);
+        if (w) await handleExport(id, w.name);
+      }
+    } finally {
+      setBulkWorking(false);
+    }
+  }
 
   async function handleTogglePin(id: string, current: boolean) {
     setPinningId(id);
@@ -608,6 +666,86 @@ export default function WorkflowsPage() {
           </div>
         </div>
       ) : (
+        <>
+        {selectedIds.size > 0 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+            marginBottom: 12, padding: "10px 14px",
+            backgroundColor: "var(--color-surface)",
+            border: "1px solid var(--color-accent)",
+            borderRadius: 10, fontSize: 13,
+          }}>
+            <span style={{ color: "var(--color-accent)", fontWeight: 600 }}>
+              {selectedIds.size} selected
+            </span>
+            <button
+              onClick={() => setSelectedIds(new Set(filtered.map((w) => w.id)))}
+              style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+            >
+              Select all ({filtered.length})
+            </button>
+            <span style={{ color: "var(--color-border)" }}>|</span>
+            {bulkDeleteConfirm ? (
+              <>
+                <span style={{ color: "var(--color-error)", fontWeight: 500 }}>
+                  Delete {selectedIds.size} workflow{selectedIds.size > 1 ? "s" : ""}?
+                </span>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={bulkWorking}
+                  style={{ fontSize: 12, fontWeight: 600, color: "var(--color-error)", background: "none", border: "none", cursor: bulkWorking ? "default" : "pointer", padding: "2px 6px" }}
+                >
+                  {bulkWorking ? "Deleting…" : "Yes, delete"}
+                </button>
+                <button
+                  onClick={() => setBulkDeleteConfirm(false)}
+                  disabled={bulkWorking}
+                  style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => handleBulkPin(true)}
+                  disabled={bulkWorking}
+                  style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: bulkWorking ? "default" : "pointer", padding: "2px 6px" }}
+                >
+                  Pin
+                </button>
+                <button
+                  onClick={() => handleBulkPin(false)}
+                  disabled={bulkWorking}
+                  style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: bulkWorking ? "default" : "pointer", padding: "2px 6px" }}
+                >
+                  Unpin
+                </button>
+                <button
+                  onClick={handleBulkExport}
+                  disabled={bulkWorking}
+                  style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: bulkWorking ? "default" : "pointer", padding: "2px 6px" }}
+                >
+                  {bulkWorking ? "Exporting…" : "Export"}
+                </button>
+                <button
+                  onClick={() => setBulkDeleteConfirm(true)}
+                  disabled={bulkWorking}
+                  style={{ fontSize: 12, color: "var(--color-error)", background: "none", border: "none", cursor: bulkWorking ? "default" : "pointer", padding: "2px 6px" }}
+                >
+                  Delete
+                </button>
+                <span style={{ color: "var(--color-border)" }}>|</span>
+                <button
+                  onClick={clearSelection}
+                  style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+                >
+                  Clear selection
+                </button>
+              </>
+            )}
+          </div>
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.map((w) => (
             <Link
@@ -616,20 +754,31 @@ export default function WorkflowsPage() {
               style={{
                 display: "block",
                 padding: 16,
-                backgroundColor: "var(--color-surface)",
-                border: "1px solid var(--color-border)",
+                backgroundColor: selectedIds.has(w.id) ? "var(--color-accent)0d" : "var(--color-surface)",
+                border: `1px solid ${selectedIds.has(w.id) ? "var(--color-accent)" : "var(--color-border)"}`,
                 borderRadius: 10,
                 textDecoration: "none",
                 transition: "background-color 100ms ease",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-surface-hover)";
+                if (!selectedIds.has(w.id)) e.currentTarget.style.backgroundColor = "var(--color-surface-hover)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--color-surface)";
+                e.currentTarget.style.backgroundColor = selectedIds.has(w.id) ? "var(--color-accent)0d" : "var(--color-surface)";
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSelect(w.id); }}
+                  style={{ marginRight: 10, flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center" }}
+                >
+                  <input
+                    type="checkbox"
+                    readOnly
+                    checked={selectedIds.has(w.id)}
+                    style={{ width: 15, height: 15, cursor: "pointer", accentColor: "var(--color-accent)" }}
+                  />
+                </span>
                 {renamingId === w.id ? (
                   <span
                     style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}
@@ -890,6 +1039,7 @@ export default function WorkflowsPage() {
             </Link>
           ))}
         </div>
+        </>
       )}
 
       {/* Create Workflow Modal */}

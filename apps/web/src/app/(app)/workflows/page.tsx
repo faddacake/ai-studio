@@ -1311,8 +1311,11 @@ export default function WorkflowsPage() {
               ) : null}
               <LastRunIndicator status={w.lastRunStatus} lastRunAt={w.lastRunAt} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-                <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0 }}>
-                  Updated {new Date(w.updatedAt).toLocaleDateString()}
+                <p
+                  style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0 }}
+                  title={new Date(w.updatedAt).toLocaleString()}
+                >
+                  Updated {formatTimeAgo(w.updatedAt)}
                 </p>
                 {deletingId === w.id ? (
                   <span style={{ display: "flex", alignItems: "center", gap: 8 }}>

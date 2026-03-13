@@ -70,6 +70,7 @@ export default function WorkflowsPage() {
     return localStorage.getItem("aiStudio.workflow.pinned") === "1";
   });
   const [pinningId, setPinningId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkWorking, setBulkWorking] = useState(false);
@@ -160,6 +161,18 @@ export default function WorkflowsPage() {
   }, []);
 
   useEffect(() => { fetchWorkflows(); }, [fetchWorkflows]);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    function close() { setOpenMenuId(null); }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpenMenuId(null); }
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [openMenuId]);
 
   useEffect(() => {
     // Persist to localStorage
@@ -1011,49 +1024,56 @@ export default function WorkflowsPage() {
                       {pinningId === w.id ? "…" : w.isPinned ? "Unpin" : "Pin"}
                     </button>
                     <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
-                    <button
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); startRename(w.id, w.name); }}
-                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
-                    >
-                      Rename
-                    </button>
-                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
-                    <button
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); startEditDesc(w.id, w.description ?? ""); }}
-                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
-                    >
-                      Description
-                    </button>
-                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
-                    <button
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); startEditTags(w.id, w.tags ?? []); }}
-                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
-                    >
-                      Tags
-                    </button>
-                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
-                    <button
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDuplicate(w.id); }}
-                      disabled={duplicatingId === w.id}
-                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: duplicatingId === w.id ? "default" : "pointer", padding: "2px 6px" }}
-                    >
-                      {duplicatingId === w.id ? "Copying…" : "Duplicate"}
-                    </button>
-                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
-                    <button
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleExport(w.id, w.name); }}
-                      disabled={exportingId === w.id}
-                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: exportingId === w.id ? "default" : "pointer", padding: "2px 6px" }}
-                    >
-                      {exportingId === w.id ? "Exporting…" : "Export"}
-                    </button>
-                    <span style={{ fontSize: 12, color: "var(--color-border)" }}>·</span>
-                    <button
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeletingId(w.id); }}
-                      style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
-                    >
-                      Delete
-                    </button>
+                    {/* Overflow menu */}
+                    <span style={{ position: "relative" }}>
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenMenuId(openMenuId === w.id ? null : w.id); }}
+                        style={{ fontSize: 15, color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: "2px 8px", letterSpacing: 2, lineHeight: 1 }}
+                        title="More actions"
+                      >
+                        ···
+                      </button>
+                      {openMenuId === w.id && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            position: "absolute", bottom: "calc(100% + 4px)", right: 0,
+                            backgroundColor: "var(--color-bg-secondary)",
+                            border: "1px solid var(--color-border)",
+                            borderRadius: 8, zIndex: 200,
+                            minWidth: 150, boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {(
+                            [
+                              { label: "Rename", action: () => { setOpenMenuId(null); startRename(w.id, w.name); } },
+                              { label: "Description", action: () => { setOpenMenuId(null); startEditDesc(w.id, w.description ?? ""); } },
+                              { label: "Tags", action: () => { setOpenMenuId(null); startEditTags(w.id, w.tags ?? []); } },
+                              { label: duplicatingId === w.id ? "Copying…" : "Duplicate", action: () => { setOpenMenuId(null); handleDuplicate(w.id); }, disabled: duplicatingId === w.id },
+                              { label: exportingId === w.id ? "Exporting…" : "Export", action: () => { setOpenMenuId(null); handleExport(w.id, w.name); }, disabled: exportingId === w.id },
+                              { label: "Delete", action: () => { setOpenMenuId(null); setDeletingId(w.id); }, danger: true },
+                            ] as { label: string; action: () => void; disabled?: boolean; danger?: boolean }[]
+                          ).map(({ label, action, disabled, danger }) => (
+                            <button
+                              key={label}
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (!disabled) action(); }}
+                              disabled={disabled}
+                              style={{
+                                display: "block", width: "100%", textAlign: "left",
+                                padding: "8px 14px", fontSize: 13,
+                                color: danger ? "var(--color-error)" : disabled ? "var(--color-text-muted)" : "var(--color-text-secondary)",
+                                background: "none", border: "none",
+                                cursor: disabled ? "default" : "pointer",
+                                borderBottom: "1px solid var(--color-border)",
+                              }}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </span>
                   </span>
                 )}
               </div>

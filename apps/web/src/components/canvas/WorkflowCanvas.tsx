@@ -67,7 +67,12 @@ function CanvasInner() {
     pushHistory,
     undo,
     redo,
+    historyStack,
+    redoStack,
   } = useWorkflowStore();
+
+  const canUndo = historyStack.length > 0;
+  const canRedo = redoStack.length > 0;
 
   // ── Debug panel tab ───────────────────────────────────────────────────────
   const [activeDebugTab, setActiveDebugTab] = useState<"nodes" | "outputs">("nodes");
@@ -464,6 +469,32 @@ function CanvasInner() {
             }`}
           >
             Debugger
+          </button>
+          <button
+            type="button"
+            onClick={undo}
+            disabled={!canUndo}
+            title={canUndo ? "Undo" : "Nothing to undo"}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              canUndo
+                ? "border-neutral-700 bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300"
+                : "border-neutral-700 bg-neutral-900 text-neutral-600 cursor-default"
+            }`}
+          >
+            Undo <span className="opacity-50">⌘Z</span>
+          </button>
+          <button
+            type="button"
+            onClick={redo}
+            disabled={!canRedo}
+            title={canRedo ? "Redo" : "Nothing to redo"}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              canRedo
+                ? "border-neutral-700 bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300"
+                : "border-neutral-700 bg-neutral-900 text-neutral-600 cursor-default"
+            }`}
+          >
+            Redo <span className="opacity-50">⌘⇧Z</span>
           </button>
           <button
             type="button"

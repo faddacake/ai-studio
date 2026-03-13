@@ -90,6 +90,7 @@ export default function WorkflowsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkWorking, setBulkWorking] = useState(false);
+  const [bulkExportProgress, setBulkExportProgress] = useState<{ done: number; total: number } | null>(null);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -135,15 +136,20 @@ export default function WorkflowsPage() {
   }
 
   async function handleBulkExport() {
+    const ids = [...selectedIds];
+    const total = ids.length;
     setBulkWorking(true);
+    setBulkExportProgress({ done: 0, total });
     try {
-      for (const id of selectedIds) {
-        const w = workflows.find((x) => x.id === id);
-        if (w) await handleExport(id, w.name);
+      for (let i = 0; i < ids.length; i++) {
+        const w = workflows.find((x) => x.id === ids[i]);
+        if (w) await handleExport(ids[i], w.name);
+        setBulkExportProgress({ done: i + 1, total });
       }
       clearSelection();
     } finally {
       setBulkWorking(false);
+      setBulkExportProgress(null);
     }
   }
 
@@ -911,8 +917,13 @@ export default function WorkflowsPage() {
                   disabled={bulkWorking}
                   style={{ fontSize: 12, color: "var(--color-text-muted)", background: "none", border: "none", cursor: bulkWorking ? "default" : "pointer", padding: "2px 6px" }}
                 >
-                  {bulkWorking ? "Exporting…" : "Export"}
+                  Export
                 </button>
+                {bulkExportProgress && (
+                  <span style={{ fontSize: 11, color: "var(--color-text-muted)", paddingLeft: 2 }}>
+                    {bulkExportProgress.done} / {bulkExportProgress.total}…
+                  </span>
+                )}
                 <button
                   onClick={() => setBulkDeleteConfirm(true)}
                   disabled={bulkWorking}

@@ -1314,6 +1314,21 @@ The full Kling path — palette → drag to canvas → inspector → run → vid
 ---
 
 Date: 2026-03-18
+Session: Editor Project Persistence (V1 Foundation) ✅ SHIPPED
+
+---
+
+## Session Summary — Editor Project Persistence (V1 Foundation) (2026-03-18)
+
+Introduced the minimal persistence layer for the Video Editor V1. Added an `editor_projects` table to the SQLite schema (migration `0007_editor_projects`) with columns for `id`, `name`, `aspect_ratio`, `scenes` (JSON), `audio_track` (JSON, nullable), `created_at`, and `updated_at`. Defined TypeScript types in `apps/web/src/lib/editorProjectTypes.ts` covering `EditorProject`, `Scene`, `TextOverlay`, `AudioTrack`, and `AspectRatio`. Created a server-side data access module at `apps/web/src/server/api/editorProjects.ts` with `listEditorProjects`, `getEditorProject`, `createEditorProject`, `updateEditorProject`, and `deleteEditorProject` — including a shared `parseRow` helper that converts raw DB rows to typed `EditorProject` objects. Exposed the CRUD operations over HTTP via thin Next.js route handlers at `GET/POST /api/editor-projects` and `GET/PATCH/DELETE /api/editor-projects/[id]`, following the exact same pattern as `node-presets` and `fragments`. Scenes reference artifacts by path only, keeping the existing artifact system as the sole source of truth for media files. Updated `docs/AI_STUDIO_SYSTEM_CONTEXT.md` with a "Video Editor (V1)" section. Web typecheck and db package build both clean.
+
+**Next recommended task:** Build the Video Editor UI shell — a new page at `/editor` (or `/editor/[id]`) that loads an `EditorProject`, renders a scene list on the left, a preview area in the centre, and a basic toolbar (add scene from artifact picker, reorder, set duration). This is the UI layer that consumes the persistence model added this session.
+
+**Suggested title:** `Video Editor UI shell — scene list + preview area`
+
+---
+
+Date: 2026-03-18
 Session: Video Run Lifecycle Clarity Pass ✅ SHIPPED
 
 ---

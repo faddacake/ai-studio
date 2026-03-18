@@ -1,6 +1,21 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-18
+Session: Video Editor UI Shell (Persistent Project Surface) ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor UI Shell (Persistent Project Surface) (2026-03-18)
+
+Built the first usable Video Editor UI shell at `/editor/[id]` on top of the persistence layer added in the previous session. The editor is a full-screen surface outside the `(app)` route group (no sidebar), with three clear regions: a top toolbar, a left scene list, and a central preview area. `EditorShell` owns all mutable editor state (`scenes[]`, `projectName`, `selectedId`, `isDirty`, `saveState`) and exposes clean callbacks to its children. `EditorToolbar` shows a breadcrumb back to Workflows, an inline-editable project name with an unsaved-changes dot, a read-only aspect ratio badge, and a Save button that PATCHes to the existing `/api/editor-projects/[id]` endpoint. `SceneList` renders each scene as a card with a thumbnail (`<video preload="metadata">` for video, `<img>` for image), a type badge, an inline-editable duration field, and up/down/remove controls; the "Add Scene" button is rendered as a disabled placeholder pending an artifact picker. `PreviewPlayer` uses a padding-bottom aspect-ratio container that locks the preview to the project's `aspectRatio`; video scenes render as `<video controls playsInline>` and image scenes as `<img>`, with an empty state for projects with no scenes. Web typecheck clean throughout.
+
+**Next recommended task:** Build the artifact picker that allows users to add scenes from existing run artifacts — a modal or side panel that lists artifacts from recent runs (calling `/api/workflows/[id]/runs/[runId]/outputs`), lets the user pick one, and appends it as a new `Scene` in the editor. This is the missing "Add Scene" flow that currently renders as a disabled placeholder.
+
+**Suggested title:** `Video Editor artifact picker — add scenes from run outputs`
+
+---
+
+Date: 2026-03-18
 Session: Editor Project Persistence (V1 Foundation) ✅ SHIPPED
 
 ---

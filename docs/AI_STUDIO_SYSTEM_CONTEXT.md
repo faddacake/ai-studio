@@ -64,12 +64,22 @@ Each `Scene` carries:
 - Optional `textOverlay` (`text`, `position`, `style`)
 - Optional `transition` (`"cut"` | `"fade"`)
 
+### UI Shell
+
+- Route: `/editor/[id]` — outside the `(app)` route group (no sidebar, full-screen surface)
+- Page: `apps/web/src/app/editor/[id]/page.tsx` — client component, loads project via `/api/editor-projects/[id]`
+- **`EditorShell`** — owns all mutable state: `scenes[]`, `projectName`, `selectedId`, `saveState`, `isDirty`
+- **`EditorToolbar`** — breadcrumb `← Workflows`, inline name edit, aspect ratio badge, Save button with dirty indicator
+- **`SceneList`** — scrollable scene cards (thumbnail, type badge, duration edit, up/down/remove); "Add Scene" placeholder (disabled, deferred)
+- **`PreviewPlayer`** — aspect-ratio-locked container; `<video controls>` for video scenes, `<img>` for image scenes; empty state when no scenes exist
+
 ### Design Constraints
 
 - Artifact paths are stored as-is; the existing artifact system serves all media
 - No artifact data is duplicated in the editor schema
 - No advanced editing features (no trim, no effects, no multi-track)
 - No relational expansion — single table + JSON columns
+- No autosave — explicit Save button only
 
 ---
 

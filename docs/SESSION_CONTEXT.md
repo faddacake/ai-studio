@@ -1314,6 +1314,37 @@ The full Kling path — palette → drag to canvas → inspector → run → vid
 ---
 
 Date: 2026-03-18
+Session: Register Kling as First-Class Canvas Video Node ✅ VERIFIED (no changes needed)
+
+---
+
+## Session Summary — Register Kling as First-Class Canvas Video Node (2026-03-18)
+
+Full pipeline audit confirming Kling 1.6 is already registered as a first-class video node in the canvas palette. No code changes were required.
+
+**Audit findings (all clean):**
+
+1. **`apps/web/src/lib/nodeRegistryInit.ts`** — `initializeNodeRegistry()` already calls `modelsToNodeDefinitions([...IMAGE_MODELS, ...VIDEO_MODELS])` and registers all resulting definitions via `nodeRegistry.registerAll()`. Kling 1.6 is in `VIDEO_MODELS`.
+
+2. **`packages/shared/src/modelBridge.ts`** — `modelToNodeDefinition()` passes `category: model.category` to `createProviderNodeDefinition`; voice-category models are filtered (return `null`); image and video categories are both handled. No gap.
+
+3. **`packages/shared/src/nodeDefinitions/provider.ts`** — `createProviderNodeDefinition` selects `videoGenerationNode` base when `opts.category === "video"`. `videoGenerationNode` has: `outputs: [{ id: "video_out", type: PortType.Video }]`, `baseVideoGenParams` (prompt, duration, resolution, seed), `tags: ["generation", "video"]`, `category: NodeCategory.Generation`. Contract is fully modality-correct.
+
+4. **`packages/shared/src/nodeRegistry.ts`** — `getAvailable()` filters only on `isAvailable !== false`. No modality filtering. Kling 1.6 has `supported: true` → `isAvailable: true`. It will appear in every palette `getAvailable()` call.
+
+5. **`apps/web/src/components/canvas/NodePalette.tsx`** — Uses `nodeRegistry.getAvailable()`, groups by `NodeCategory`, no modality-specific filtering. Kling 1.6 appears in the "Generation" group alongside FLUX and SDXL nodes.
+
+6. **`apps/web/src/components/canvas/createWorkflowNode.ts`** — Fully definition-driven: reads ports from `definition.inputs/outputs` via `toWorkflowPorts`, reads params from `getDefaultParams(definition)`, reads `provider.providerId`/`provider.modelId` from the definition. No hardcoded image assumptions.
+
+7. **`apps/web/src/lib/presets.ts`** — "Prompt → Video" preset already added in previous session, using `NodeType.VideoGeneration` and correct `prompt_in` / `text_out` handles.
+
+The full Kling path — palette → drag to canvas → inspector → run → video output — is wired end-to-end. Web typecheck clean throughout.
+
+**Next recommended task:** Run a real end-to-end Kling test: place a Prompt Template + Kling 1.6 node on canvas, wire them, run, and confirm the video plays in the inspector and history page. Alternatively, begin the next V2 capability (e.g., image-to-video input node, Best-of-N for video, or voice model execution path).
+
+---
+
+Date: 2026-03-18
 Session: Cross-Modal Config Truthfulness Pass + Persistent Context File ✅ SHIPPED
 
 ---

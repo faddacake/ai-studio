@@ -1,6 +1,27 @@
 # SESSION CONTEXT — AI Studio
 
 Date: 2026-03-18
+Session: Video Run Lifecycle Clarity Pass ✅ SHIPPED
+
+---
+
+## Session Summary — Video Run Lifecycle Clarity Pass (2026-03-18)
+
+Audited the full video run lifecycle across all surfaces (canvas node, inspector, run outputs panel, history list, history detail) for UX truthfulness and clarity. Found three concrete gaps where the interface became ambiguous or misleading for video artifacts:
+
+**Fix 1 — `ArtifactVideo` error fallback (`history/[runId]/page.tsx`):** `ArtifactImage` had an `onError` state that shows `"{filename} — file no longer available"` when the file can't be loaded. `ArtifactVideo` had no equivalent — a missing video file would show a blank broken player with no explanation. Added `failed` state with `onError` handler matching `ArtifactImage`'s fallback pattern.
+
+**Fix 2 — Video thumbnail `preload="metadata"` (`history/[runId]/page.tsx`):** The artifact thumbnail strip renders 56×56 `<video muted playsInline>` elements for video artifacts. Without `preload="metadata"`, the browser would buffer the entire MP4 file for each thumbnail, which degrades page load for large Kling outputs. Added `preload="metadata"` to limit loading to just the first frame.
+
+**Fix 3 — History list run compare ignores video artifacts (`history/page.tsx`):** The `fetchFirstArtifact` helper in the A/B compare feature only called `extractImageRefs`. When comparing two Kling video runs, both comparison slots showed "No artifacts" — the runs existed and had output, but the comparison panel was completely empty. Added `extractVideoRefs` as a fallback when no image refs are found, passing `mimeType` through `ArtifactPreviewable` so `ArtifactPreviewPanel` renders a `<video>` instead of a broken `<img>`. Also added `extractVideoRefs` to the import. Web typecheck clean throughout.
+
+**Next recommended task:** Smoke-test the full Kling end-to-end path: configure a fal.ai API key, build a Prompt Template → Kling 1.6 workflow from the canvas palette, run it, and verify the video plays in the inspector, the run outputs panel, the history detail page, and the history list compare feature. This would confirm all the accumulated video hardening work functions as an integrated system.
+
+**Suggested title:** `Smoke test Kling end-to-end video path`
+
+---
+
+Date: 2026-03-18
 Session: Register Kling as First-Class Canvas Video Node ✅ VERIFIED (no changes needed)
 
 ---

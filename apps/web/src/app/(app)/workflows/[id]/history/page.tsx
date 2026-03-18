@@ -3,7 +3,7 @@
 import { useEffect, useState, use, useCallback, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { extractImageRefs } from "@/lib/artifactRefs";
+import { extractImageRefs, extractVideoRefs } from "@/lib/artifactRefs";
 import { ArtifactPreviewPanel } from "@/components/prompt/ArtifactPreviewPanel";
 import type { ArtifactPreviewable } from "@/components/prompt/ArtifactPreviewPanel";
 import { ArtifactLineage } from "@/components/history/ArtifactLineage";
@@ -359,13 +359,25 @@ export default function HistoryPage({
       const data: { outputs: Array<{ nodeId: string; outputs: Record<string, unknown> }> } = await res.json();
       const run = runs.find((r) => r.id === runId);
       for (const entry of data.outputs ?? []) {
-        const refs = Object.values(entry.outputs).flatMap((v) => extractImageRefs(v));
-        if (refs.length > 0) {
-          const ref = refs[0];
+        const vals = Object.values(entry.outputs);
+        const imageRefs = vals.flatMap((v) => extractImageRefs(v));
+        if (imageRefs.length > 0) {
+          const ref = imageRefs[0];
           return {
             modelId: `${runId}-${entry.nodeId}`,
             modelName: run ? `Run ${runId.slice(0, 8)} · ${run.status}` : `Run ${runId.slice(0, 8)}`,
             outputUrl: `/api/artifacts?path=${encodeURIComponent(ref.path)}`,
+            cost: run?.totalCost ?? undefined,
+          };
+        }
+        const videoRefs = vals.flatMap((v) => extractVideoRefs(v));
+        if (videoRefs.length > 0) {
+          const ref = videoRefs[0];
+          return {
+            modelId: `${runId}-${entry.nodeId}`,
+            modelName: run ? `Run ${runId.slice(0, 8)} · ${run.status}` : `Run ${runId.slice(0, 8)}`,
+            outputUrl: `/api/artifacts?path=${encodeURIComponent(ref.path)}`,
+            mimeType: ref.mimeType,
             cost: run?.totalCost ?? undefined,
           };
         }

@@ -714,6 +714,7 @@ export default function RunDetailPage({
                                   src={a.outputUrl}
                                   muted
                                   playsInline
+                                  preload="metadata"
                                   style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 5, display: "block", opacity: isPathSelected(a.artifactPath) ? 1 : 0.4 }}
                                 />
                               ) : (
@@ -1541,13 +1542,32 @@ function PortLabel({ label, note }: { label: string; note?: string }) {
 }
 
 function ArtifactVideo({ ref }: { ref: ArtifactRef }) {
+  const [failed, setFailed] = useState(false);
   const src = `/api/artifacts?path=${encodeURIComponent(ref.path)}`;
+
+  if (failed) {
+    return (
+      <div style={{
+        padding: "8px 12px",
+        backgroundColor: "var(--color-surface)",
+        border: "1px solid var(--color-border)",
+        borderRadius: 6,
+        fontSize: 11,
+        color: "var(--color-text-muted)",
+      }}>
+        {ref.filename}
+        {" — file no longer available"}
+      </div>
+    );
+  }
+
   return (
     <video
       src={src}
       controls
       playsInline
       title={ref.filename}
+      onError={() => setFailed(true)}
       style={{
         maxHeight: 200,
         maxWidth: "min(320px, 100%)",

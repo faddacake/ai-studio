@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ModelRunResult, ModelRunStatus } from "@/hooks/usePromptRunner";
 import type { ModelOption } from "@/config/models";
 import { rankModels, type RankingWeights } from "@/lib/ranking/score";
+import { ArtifactPreviewPanel } from "./ArtifactPreviewPanel";
 
 export type ResultsTab = "results" | "social";
 
@@ -200,6 +201,12 @@ useEffect(() => {
           </div>
         </div>
       )}
+
+      {/* Artifact preview — focused review of the selected winner before export */}
+      {activeTab === "results" && winnerId && (() => {
+        const winner = results.find((r) => r.modelId === winnerId);
+        return winner ? <ArtifactPreviewPanel result={winner} /> : null;
+      })()}
 
       {activeTab === "results" && (
         <div style={{

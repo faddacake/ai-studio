@@ -15,6 +15,7 @@ export const workflows = sqliteTable(
     lastRunId: text("last_run_id"),
     lastRunStatus: text("last_run_status"),
     lastRunAt: text("last_run_at"),
+    lastRunError: text("last_run_error"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
     deletedAt: text("deleted_at"),
@@ -35,6 +36,7 @@ export const runs = sqliteTable(
     budgetCap: real("budget_cap"),
     budgetMode: text("budget_mode").default("hard_stop"),
     totalCost: real("total_cost").default(0),
+    error: text("error"),
     startedAt: text("started_at"),
     completedAt: text("completed_at"),
     createdAt: text("created_at").notNull(),
@@ -124,3 +126,40 @@ export const sessions = sqliteTable("sessions", {
   expiresAt: text("expires_at").notNull(),
   createdAt: text("created_at").notNull(),
 });
+
+export const workflowFragments = sqliteTable(
+  "workflow_fragments",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    graphSnapshot: text("graph_snapshot").notNull(), // JSON: { nodes, edges }
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("idx_workflow_fragments_created_at").on(table.createdAt)],
+);
+
+export const nodePresets = sqliteTable(
+  "node_presets",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    nodeType: text("node_type").notNull(),
+    params: text("params").notNull(), // JSON: Record<string, unknown>
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("idx_node_presets_node_type").on(table.nodeType)],
+);
+
+export const workflowRevisions = sqliteTable(
+  "workflow_revisions",
+  {
+    id: text("id").primaryKey(),
+    workflowId: text("workflow_id")
+      .notNull()
+      .references(() => workflows.id),
+    label: text("label"),
+    graphSnapshot: text("graph_snapshot").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("idx_workflow_revisions_workflow_id").on(table.workflowId)],
+);

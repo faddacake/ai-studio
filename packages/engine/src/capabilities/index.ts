@@ -14,13 +14,19 @@ export { executeExportBundle } from "./exportBundle.js";
 export {
   MockGeneratorAdapter,
   FalGeneratorAdapter,
+  ReplicateGeneratorAdapter,
+  FalVideoGeneratorAdapter,
   createGenerator,
+  createVideoGenerator,
+  isFalVideoModelId,
 } from "./generator.js";
 export type {
   GeneratorAdapter,
+  VideoGeneratorAdapter,
   GeneratorAdapterOptions,
   GenerateOpts,
   GeneratedImage,
+  GeneratedVideo,
 } from "./generator.js";
 
 /**

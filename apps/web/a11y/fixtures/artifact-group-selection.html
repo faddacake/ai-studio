@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Artifact Group Selection – keyboard / a11y fixture</title>
+    <style>
+      :root {
+        /* Match actual globals.css values so axe contrast checks reflect production */
+        --color-accent: #3b82f6;
+        --color-text-muted: #828282;
+        --color-border: #2a2a2a;
+        --color-surface: #1a1a1a;
+      }
+
+      body { font-family: sans-serif; background: #0a0a0a; color: #e2e8f0; margin: 0; padding: 24px; }
+
+      /* Global selection bar */
+      .global-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 11px; }
+
+      /* Group headers */
+      .group-header { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; }
+      .group-label { font-size: 11px; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+      /* opacity removed — opacity: 0.6 on #828282 yields ~#525252 (2.6:1 on dark bg), failing WCAG AA */
+      .group-count { font-size: 10px; color: var(--color-text-muted); }
+      .group-divider { flex: 1; height: 1px; background: var(--color-border); }
+
+      /* Action buttons */
+      button.action {
+        font-size: 10px;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+      }
+      button.action.accent { color: var(--color-accent); }
+      button.action.muted  { color: var(--color-text-muted); }
+      button.action:disabled { opacity: 0.35; cursor: default; }
+
+      /* Global controls use slightly larger text */
+      .global-controls button.action { font-size: 11px; }
+
+      /* Thumbnail placeholders */
+      .artifacts { display: flex; gap: 8px; flex-wrap: wrap; }
+      .artifact { position: relative; }
+      .artifact-thumb {
+        width: 64px;
+        height: 64px;
+        border-radius: 6px;
+        border: 1px solid var(--color-border);
+        background: var(--color-surface);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: var(--color-text-muted);
+        box-sizing: border-box;
+      }
+      .artifact input[type="checkbox"] {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+    <h1 style="font-size:13px;color:#828282;font-weight:400;margin:0 0 16px;">Artifact Export — Group Selection</h1>
+    <!-- Global selection controls -->
+    <div class="global-controls">
+      <span id="global-count" aria-live="polite" aria-atomic="true">
+        5 of 5 selected for export
+      </span>
+      <button type="button" class="action accent" id="btn-global-all" aria-label="Select all artifacts">All</button>
+      <button type="button" class="action muted"  id="btn-global-none" aria-label="Deselect all artifacts">None</button>
+    </div>
+
+    <!-- Artifact grid (two groups) -->
+    <div role="group" aria-label="Artifact outputs">
+
+      <!-- Node A (3 artifacts) -->
+      <div>
+        <div class="group-header">
+          <span class="group-label">Node A</span>
+          <span id="count-a" class="group-count">3/3</span>
+          <div class="group-divider"></div>
+          <button type="button" class="action accent" id="btn-a-all"   aria-label="Select all from Node A"    disabled>All</button>
+          <button type="button" class="action muted"  id="btn-a-clear" aria-label="Clear Node A selection">Clear</button>
+        </div>
+        <div class="artifacts">
+          <div class="artifact">
+            <div class="artifact-thumb" aria-hidden="true">A1</div>
+            <input type="checkbox" data-path="a/1.png" aria-label="Include A1 in export" checked />
+          </div>
+          <div class="artifact">
+            <div class="artifact-thumb" aria-hidden="true">A2</div>
+            <input type="checkbox" data-path="a/2.png" aria-label="Include A2 in export" checked />
+          </div>
+          <div class="artifact">
+            <div class="artifact-thumb" aria-hidden="true">A3</div>
+            <input type="checkbox" data-path="a/3.png" aria-label="Include A3 in export" checked />
+          </div>
+        </div>
+      </div>
+
+      <!-- Node B (2 artifacts) -->
+      <div>
+        <div class="group-header">
+          <span class="group-label">Node B</span>
+          <span id="count-b" class="group-count">2/2</span>
+          <div class="group-divider"></div>
+          <button type="button" class="action accent" id="btn-b-all"   aria-label="Select all from Node B"    disabled>All</button>
+          <button type="button" class="action muted"  id="btn-b-clear" aria-label="Clear Node B selection">Clear</button>
+        </div>
+        <div class="artifacts">
+          <div class="artifact">
+            <div class="artifact-thumb" aria-hidden="true">B1</div>
+            <input type="checkbox" data-path="b/1.png" aria-label="Include B1 in export" checked />
+          </div>
+          <div class="artifact">
+            <div class="artifact-thumb" aria-hidden="true">B2</div>
+            <input type="checkbox" data-path="b/2.png" aria-label="Include B2 in export" checked />
+          </div>
+        </div>
+      </div>
+
+    </div>
+    </main>
+
+    <script>
+      // ── State ────────────────────────────────────────────────────────────────
+      // null  = all paths selected (mirrors React's selectedPaths === null)
+      // Set   = explicit selection (empty Set = nothing selected)
+
+      const ALL_PATHS = ["a/1.png", "a/2.png", "a/3.png", "b/1.png", "b/2.png"];
+      const GROUP_A   = ["a/1.png", "a/2.png", "a/3.png"];
+      const GROUP_B   = ["b/1.png", "b/2.png"];
+
+      let selectedPaths = null; // initial: all selected
+
+      // ── Helpers ──────────────────────────────────────────────────────────────
+
+      function isSelected(p) {
+        return selectedPaths === null || selectedPaths.has(p);
+      }
+
+      function groupCount(paths) {
+        return paths.filter(p => isSelected(p)).length;
+      }
+
+      // ── Render ───────────────────────────────────────────────────────────────
+
+      function render() {
+        // Checkboxes
+        for (const p of ALL_PATHS) {
+          const cb = document.querySelector(`[data-path="${p}"]`);
+          if (cb) cb.checked = isSelected(p);
+        }
+
+        // Node A header
+        const cntA = groupCount(GROUP_A);
+        document.getElementById("count-a").textContent = `${cntA}/${GROUP_A.length}`;
+        document.getElementById("btn-a-all").disabled   = cntA === GROUP_A.length;
+        document.getElementById("btn-a-clear").disabled = cntA === 0;
+
+        // Node B header
+        const cntB = groupCount(GROUP_B);
+        document.getElementById("count-b").textContent = `${cntB}/${GROUP_B.length}`;
+        document.getElementById("btn-b-all").disabled   = cntB === GROUP_B.length;
+        document.getElementById("btn-b-clear").disabled = cntB === 0;
+
+        // Global count
+        const total = ALL_PATHS.filter(p => isSelected(p)).length;
+        document.getElementById("global-count").textContent =
+          `${total} of ${ALL_PATHS.length} selected for export`;
+      }
+
+      // ── Event handlers ───────────────────────────────────────────────────────
+
+      document.getElementById("btn-global-all").onclick = () => {
+        selectedPaths = null;
+        render();
+      };
+
+      document.getElementById("btn-global-none").onclick = () => {
+        selectedPaths = new Set();
+        render();
+      };
+
+      document.getElementById("btn-a-all").onclick = () => {
+        if (selectedPaths === null) return;
+        const next = new Set(selectedPaths);
+        for (const p of GROUP_A) next.add(p);
+        selectedPaths = next;
+        render();
+      };
+
+      document.getElementById("btn-a-clear").onclick = () => {
+        const base = selectedPaths ?? new Set(ALL_PATHS);
+        const next = new Set(base);
+        for (const p of GROUP_A) next.delete(p);
+        selectedPaths = next;
+        render();
+      };
+
+      document.getElementById("btn-b-all").onclick = () => {
+        if (selectedPaths === null) return;
+        const next = new Set(selectedPaths);
+        for (const p of GROUP_B) next.add(p);
+        selectedPaths = next;
+        render();
+      };
+
+      document.getElementById("btn-b-clear").onclick = () => {
+        const base = selectedPaths ?? new Set(ALL_PATHS);
+        const next = new Set(base);
+        for (const p of GROUP_B) next.delete(p);
+        selectedPaths = next;
+        render();
+      };
+
+      // Per-artifact checkboxes
+      for (const p of ALL_PATHS) {
+        const cb = document.querySelector(`[data-path="${p}"]`);
+        if (!cb) continue;
+        cb.addEventListener("change", () => {
+          const base = selectedPaths ?? new Set(ALL_PATHS);
+          const next = new Set(base);
+          if (cb.checked) next.add(p); else next.delete(p);
+          selectedPaths = next;
+          render();
+        });
+      }
+
+      render(); // sync initial state
+    </script>
+  </body>
+</html>

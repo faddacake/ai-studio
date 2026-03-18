@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Replay Banner – lifecycle fixture</title>
+    <style>
+      body { font-family: sans-serif; background: #0a0a0a; color: #e2e8f0; margin: 0; }
+      .canvas { position: relative; width: 100vw; height: 100vh; }
+
+      /* Replay banner – mirrors WorkflowCanvas.tsx styles */
+      [data-testid="replay-banner"] {
+        position: absolute;
+        left: 50%;
+        top: 8px;
+        z-index: 20;
+        transform: translateX(-50%);
+      }
+      .banner-inner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(180,83,9,0.5);
+        background: rgba(67,20,7,0.9);
+        padding: 6px 16px;
+        font-size: 12px;
+        color: #fcd34d;
+      }
+      .dismiss-btn {
+        background: none;
+        border: none;
+        color: #f59e0b;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 0;
+      }
+      .dismiss-btn:hover { color: #fde68a; }
+
+      /* Controls */
+      .controls {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 12px;
+      }
+      button.action {
+        padding: 8px 20px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      button#run-ok  { background: #16a34a; color: #fff; }
+      button#run-err { background: #dc2626; color: #fff; }
+    </style>
+  </head>
+  <body>
+    <div class="canvas" id="canvas">
+      <!-- Replay banner (initially visible) -->
+      <div data-testid="replay-banner" id="banner">
+        <div class="banner-inner">
+          <span>
+            Editing from run
+            <code id="run-id-short">run-abc0</code>
+            — make changes and run as new
+          </span>
+          <button
+            type="button"
+            class="dismiss-btn"
+            aria-label="Dismiss replay banner"
+            id="dismiss-btn"
+          >✕</button>
+        </div>
+      </div>
+
+      <!-- Action buttons simulate successful / failed run dispatch -->
+      <div class="controls">
+        <button type="button" class="action" id="run-ok">Run (success)</button>
+        <button type="button" class="action" id="run-err">Run (fail)</button>
+      </div>
+    </div>
+
+    <script>
+      // Minimal state machine mirroring workflowStore.runWorkflow() logic:
+      //   success → clear banner; failure → keep banner.
+
+      const banner = document.getElementById("banner");
+
+      document.getElementById("dismiss-btn").addEventListener("click", () => {
+        banner.style.display = "none";
+        banner.setAttribute("data-dismissed", "true");
+      });
+
+      document.getElementById("run-ok").addEventListener("click", () => {
+        // Simulate successful 202: clear replayRunId → hide banner
+        banner.style.display = "none";
+        banner.setAttribute("data-run-started", "true");
+        document.getElementById("run-ok").setAttribute("data-run-started", "true");
+      });
+
+      document.getElementById("run-err").addEventListener("click", () => {
+        // Simulate failed dispatch: banner stays
+        document.getElementById("run-err").setAttribute("data-run-failed", "true");
+      });
+    </script>
+  </body>
+</html>

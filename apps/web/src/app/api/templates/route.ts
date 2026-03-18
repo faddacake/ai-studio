@@ -9,6 +9,10 @@ function parseGraph(raw: string) {
   try { return JSON.parse(raw); } catch { return { version: 1, nodes: [], edges: [] }; }
 }
 
+function parseTags(raw: string | null | undefined): string[] {
+  try { return JSON.parse(raw ?? "[]") ?? []; } catch { return []; }
+}
+
 // GET /api/templates — list all user-saved templates
 export async function GET() {
   const db = getDb();
@@ -18,6 +22,8 @@ export async function GET() {
       name: schema.workflows.name,
       description: schema.workflows.description,
       graph: schema.workflows.graph,
+      tags: schema.workflows.tags,
+      updatedAt: schema.workflows.updatedAt,
       createdAt: schema.workflows.createdAt,
     })
     .from(schema.workflows)
@@ -27,7 +33,7 @@ export async function GET() {
     .all();
 
   return NextResponse.json(
-    rows.map((r) => ({ ...r, graph: parseGraph(r.graph) })),
+    rows.map((r) => ({ ...r, graph: parseGraph(r.graph), tags: parseTags(r.tags) })),
   );
 }
 
@@ -37,7 +43,8 @@ export async function GET() {
 //   { name, description?, graph }              — save directly from provided graph (editor path)
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { sourceWorkflowId, name: rawName, description: rawDesc, graph: directGraph } = body;
+  const { sourceWorkflowId, name: rawName, description: rawDesc, graph: directGraph, tags: rawTags } = body;
+  const tagsJson = JSON.stringify(Array.isArray(rawTags) ? rawTags.filter((t: unknown) => typeof t === "string" && t.trim()) : []);
 
   const db = getDb();
   const now = new Date().toISOString();
@@ -71,6 +78,7 @@ export async function POST(request: NextRequest) {
         name: rawName?.trim() || source.name,
         description: rawDesc?.trim() ?? source.description ?? "",
         graph: source.graph,
+        tags: tagsJson,
         isTemplate: true,
         templateSource: "user",
         createdAt: now,
@@ -102,6 +110,7 @@ export async function POST(request: NextRequest) {
       name,
       description: rawDesc?.trim() ?? "",
       graph: JSON.stringify(directGraph),
+      tags: tagsJson,
       isTemplate: true,
       templateSource: "user",
       createdAt: now,

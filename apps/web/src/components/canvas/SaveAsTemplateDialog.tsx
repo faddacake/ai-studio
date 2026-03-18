@@ -27,6 +27,7 @@ export function SaveAsTemplateDialog({
 }: SaveAsTemplateDialogProps) {
   const [name, setName] = useState(defaultName || "My Template");
   const [description, setDescription] = useState("");
+  const [tagsInput, setTagsInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export function SaveAsTemplateDialog({
     if (open) {
       setName(defaultName || "My Template");
       setDescription("");
+      setTagsInput("");
       setSaving(false);
       setSaved(false);
       setError(null);
@@ -57,6 +59,11 @@ export function SaveAsTemplateDialog({
       return;
     }
 
+    const tags = tagsInput
+      .split(",")
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+
     setSaving(true);
     try {
       const res = await fetch("/api/templates", {
@@ -65,6 +72,7 @@ export function SaveAsTemplateDialog({
         body: JSON.stringify({
           name: trimmedName,
           description: description.trim() || undefined,
+          tags: tags.length > 0 ? tags : undefined,
           graph,
         }),
       });
@@ -83,7 +91,7 @@ export function SaveAsTemplateDialog({
     } finally {
       setSaving(false);
     }
-  }, [name, description, getGraph, onClose]);
+  }, [name, description, tagsInput, getGraph, onClose]);
 
   if (!open) return null;
 
@@ -141,6 +149,21 @@ export function SaveAsTemplateDialog({
               placeholder="What does this workflow do?"
               rows={2}
               className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-blue-500 focus:outline-none resize-none"
+            />
+          </label>
+
+          {/* Tags */}
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-neutral-400">
+              Tags
+              <span className="ml-1 text-neutral-600">(comma-separated)</span>
+            </span>
+            <input
+              type="text"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              placeholder="image, social, video"
+              className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-blue-500 focus:outline-none"
             />
           </label>
 

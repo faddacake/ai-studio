@@ -9,7 +9,8 @@
  *
  * Supports:
  *   - ArtifactRef images   → inline <img> via /api/artifacts?path=...
- *   - Candidate collections → extracted image grid + count
+ *   - ArtifactRef videos   → inline <video> via /api/artifacts?path=...
+ *   - Candidate collections → extracted image/video grid + count
  *   - Strings              → monospace text block
  *   - Primitives           → inline value
  *   - Everything else      → truncated formatted JSON
@@ -19,40 +20,7 @@ import { useState, useEffect } from "react";
 import { isArtifactRef } from "@aistudio/shared";
 import type { ArtifactRef } from "@aistudio/shared";
 import type { RunDebugSnapshot } from "@aistudio/engine";
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-/**
- * Recursively extract ArtifactRefs with image MIME types from a value.
- * Handles direct refs, arrays, and candidate collection shapes
- * ({ items: [{ value: ArtifactRef }] }).
- */
-function extractImageRefs(value: unknown, depth = 0): ArtifactRef[] {
-  if (depth > 3) return [];
-
-  if (isArtifactRef(value) && value.mimeType.startsWith("image/")) {
-    return [value];
-  }
-
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => extractImageRefs(item, depth + 1));
-  }
-
-  if (value !== null && typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    // CandidateCollection / CandidateSelection: { items: CandidateItem[] }
-    if (Array.isArray(obj.items)) {
-      return (obj.items as unknown[]).flatMap((item) => {
-        if (item !== null && typeof item === "object") {
-          return extractImageRefs((item as Record<string, unknown>).value, depth + 1);
-        }
-        return [];
-      });
-    }
-  }
-
-  return [];
-}
+import { extractImageRefs, extractVideoRefs } from "@/lib/artifactRefs";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -184,6 +152,16 @@ function OutputEntry({ portKey, value }: { portKey: string; value: unknown }) {
     );
   }
 
+  // Direct video ArtifactRef
+  if (isArtifactRef(value) && value.mimeType.startsWith("video/")) {
+    return (
+      <div>
+        <PortLabel label={portKey} note="video" />
+        <ArtifactVideo ref={value} />
+      </div>
+    );
+  }
+
   // Collection / selection — extract embedded image refs
   const imageRefs = extractImageRefs(value);
   if (imageRefs.length > 0) {
@@ -197,6 +175,25 @@ function OutputEntry({ portKey, value }: { portKey: string; value: unknown }) {
           {imageRefs.map((ref, i) => (
             // eslint-disable-next-line react/no-array-index-key
             <ArtifactImage key={i} ref={ref} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Collection / selection — extract embedded video refs
+  const videoRefs = extractVideoRefs(value);
+  if (videoRefs.length > 0) {
+    return (
+      <div>
+        <PortLabel
+          label={portKey}
+          note={`${videoRefs.length} video${videoRefs.length !== 1 ? "s" : ""}`}
+        />
+        <div className="flex flex-wrap gap-2">
+          {videoRefs.map((ref, i) => (
+            // eslint-disable-next-line react/no-array-index-key
+            <ArtifactVideo key={i} ref={ref} />
           ))}
         </div>
       </div>
@@ -263,6 +260,20 @@ function ArtifactImage({ ref }: { ref: ArtifactRef }) {
       }
       className="max-h-48 rounded border border-neutral-700 bg-neutral-800/60 object-contain"
       style={{ maxWidth: "min(220px, 100%)" }}
+    />
+  );
+}
+
+function ArtifactVideo({ ref }: { ref: ArtifactRef }) {
+  const src = `/api/artifacts?path=${encodeURIComponent(ref.path)}`;
+  return (
+    <video
+      src={src}
+      controls
+      playsInline
+      title={ref.filename}
+      className="max-h-48 rounded border border-neutral-700 bg-neutral-900 object-contain"
+      style={{ maxWidth: "min(300px, 100%)" }}
     />
   );
 }

@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, schema } from "@aistudio/db";
+import { getDb, schema, sql } from "@aistudio/db";
 import { eq } from "drizzle-orm";
 
 // GET /api/workflows/:id — get a single workflow
@@ -24,7 +24,13 @@ export async function GET(
     );
   }
 
-  return NextResponse.json(row);
+  const countRow = db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.workflowRevisions)
+    .where(eq(schema.workflowRevisions.workflowId, id))
+    .get();
+
+  return NextResponse.json({ ...row, revisionCount: countRow?.count ?? 0 });
 }
 
 // PATCH /api/workflows/:id — update workflow fields

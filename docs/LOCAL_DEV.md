@@ -129,3 +129,25 @@ pnpm dev
 This runs `turbo dev`, which starts:
 - `apps/web` — Next.js dev server on port 3000
 - `packages/worker` — BullMQ worker process
+
+## CI & Branch Protection
+
+The GitHub Actions workflow (`.github/workflows/ci.yml`) defines three jobs:
+
+| Job | What it runs | Trigger |
+|-----|-------------|---------|
+| `ci` | Lint, typecheck, unit tests, build | Every push / PR |
+| `a11y` | Playwright fixture tests + axe-core WCAG scan | After `ci` passes |
+| `e2e` | Full Playwright end-to-end tests against a live Next.js instance | After `ci` passes |
+
+### Required status checks (manual GitHub setup)
+
+To prevent regressions from being merged while checks are failing, pending, or skipped, configure the following as **required status checks** on the `master` branch:
+
+1. Go to **Settings → Branches → Branch protection rules → master**.
+2. Enable **Require status checks to pass before merging**.
+3. Add all three jobs as required: `ci`, `a11y`, `e2e`.
+4. Enable **Require branches to be up to date before merging** to prevent stale-branch bypasses.
+5. Do **not** enable "Allow bypassing required pull request checks" for any role.
+
+This configuration lives in GitHub repository settings, not in the repo itself, so it must be applied manually after the repo is created or transferred.

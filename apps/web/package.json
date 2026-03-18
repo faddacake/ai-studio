@@ -8,7 +8,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:a11y": "node --import tsx --test 'a11y/*.a11y.test.ts'",
+    "test:a11y:browser": "playwright test",
+    "test:store": "node --import tsx --test 'src/stores/*.test.ts'",
+    "test:e2e": "playwright test --config playwright.e2e.config.ts"
   },
   "dependencies": {
     "@aistudio/crypto": "workspace:*",
@@ -48,13 +52,20 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/jsdom": "^21.1.7",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
+    "axe-core": "^4.10.2",
+    "jsdom": "^25.0.1",
     "postcss": "^8.5.1",
     "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }
 }

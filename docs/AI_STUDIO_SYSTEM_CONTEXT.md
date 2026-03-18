@@ -45,6 +45,34 @@ AI Studio is a self-hostable, local-first visual workflow builder for AI content
 
 ---
 
+## Video Editor (V1)
+
+The Video Editor is a lightweight, scene-based project editor that lets users assemble AI-generated artifacts into a presentable sequence. It is separate from the workflow canvas and has its own persistence model.
+
+### Persistence
+
+- **Table:** `editor_projects` (SQLite, migration `0007_editor_projects`)
+- **Fields:** `id`, `name`, `aspect_ratio`, `scenes` (JSON), `audio_track` (JSON, nullable), `created_at`, `updated_at`
+- **Types:** `apps/web/src/lib/editorProjectTypes.ts` — `EditorProject`, `Scene`, `TextOverlay`, `AudioTrack`, `AspectRatio`
+- **Data access:** `apps/web/src/server/api/editorProjects.ts` — `createEditorProject`, `getEditorProject`, `updateEditorProject`, `listEditorProjects`, `deleteEditorProject`
+- **HTTP API:** `GET/POST /api/editor-projects`, `GET/PATCH/DELETE /api/editor-projects/[id]`
+
+### Scene Model
+
+Each `Scene` carries:
+- `id`, `type` (`"image"` | `"video"`), `src` (artifact path), `duration` (seconds)
+- Optional `textOverlay` (`text`, `position`, `style`)
+- Optional `transition` (`"cut"` | `"fade"`)
+
+### Design Constraints
+
+- Artifact paths are stored as-is; the existing artifact system serves all media
+- No artifact data is duplicated in the editor schema
+- No advanced editing features (no trim, no effects, no multi-track)
+- No relational expansion — single table + JSON columns
+
+---
+
 ## Architecture Principles
 
 ### Node Platform

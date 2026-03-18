@@ -163,3 +163,17 @@ export const workflowRevisions = sqliteTable(
   },
   (table) => [index("idx_workflow_revisions_workflow_id").on(table.workflowId)],
 );
+
+export const editorProjects = sqliteTable(
+  "editor_projects",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    aspectRatio: text("aspect_ratio").notNull().default("16:9"), // "16:9" | "9:16" | "1:1"
+    scenes: text("scenes").notNull().default("[]"), // JSON: Scene[]
+    audioTrack: text("audio_track"), // JSON: AudioTrack | null
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [index("idx_editor_projects_created_at").on(table.createdAt)],
+);

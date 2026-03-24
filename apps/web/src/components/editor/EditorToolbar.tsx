@@ -13,6 +13,7 @@ interface EditorToolbarProps {
   saveState: SaveState;
   isDirty: boolean;
   onNameChange: (name: string) => void;
+  onAspectRatioChange: (ar: AspectRatio) => void;
   onSave: () => void;
 }
 
@@ -29,12 +30,15 @@ const SAVE_LABEL: Record<SaveState, string> = {
   error:  "Save failed — retry",
 };
 
+const ASPECT_RATIOS: AspectRatio[] = ["16:9", "9:16", "1:1"];
+
 export function EditorToolbar({
   name,
   aspectRatio,
   saveState,
   isDirty,
   onNameChange,
+  onAspectRatioChange,
   onSave,
 }: EditorToolbarProps) {
   const [editingName, setEditingName] = useState(false);
@@ -138,18 +142,44 @@ export function EditorToolbar({
       {/* Spacer */}
       <div style={{ flex: 1 }} />
 
-      {/* Aspect ratio badge */}
-      <span
+      {/* Aspect ratio selector */}
+      <select
+        value={aspectRatio}
+        onChange={(e) => onAspectRatioChange(e.target.value as AspectRatio)}
+        title="Change aspect ratio"
         style={{
           fontSize: 11,
           color: "var(--color-text-muted)",
-          padding: "2px 8px",
+          padding: "2px 6px",
           border: "1px solid var(--color-border)",
           borderRadius: 4,
+          background: "var(--color-bg-secondary)",
+          cursor: "pointer",
           flexShrink: 0,
+          outline: "none",
         }}
       >
-        {ASPECT_RATIO_LABEL[aspectRatio]}
+        {ASPECT_RATIOS.map((ar) => (
+          <option key={ar} value={ar}>
+            {ASPECT_RATIO_LABEL[ar]}
+          </option>
+        ))}
+      </select>
+
+      {/* Save confirmation indicator — fades in on saved, fades out on idle */}
+      <span
+        aria-live="polite"
+        style={{
+          fontSize: 11,
+          color: "var(--color-success, #22c55e)",
+          opacity: saveState === "saved" ? 1 : 0,
+          transition: saveState === "saved" ? "opacity 80ms" : "opacity 600ms",
+          flexShrink: 0,
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+        }}
+      >
+        ✓ Saved
       </span>
 
       {/* Save button */}

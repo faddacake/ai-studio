@@ -1,13 +1,27 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import type { AspectRatio, Scene, TextOverlay } from "@/lib/editorProjectTypes";
+import { computeFadeProgress } from "@/lib/sceneTiming";
+import type { RenderPlan } from "@/lib/renderPlan";
 
 interface PreviewPlayerProps {
   scene: Scene | null;
+  scenes: Scene[];
+  plan: RenderPlan;
+  playIndex: number;
+  playEpoch: number;
+  seekOffsetMs: number;
+  isScrubbing: boolean;
   aspectRatio: AspectRatio;
   isPlaying: boolean;
   canPlay: boolean;
   onPlayPause: () => void;
+  onSeek: (targetMs: number) => void;
+  onScrubStart: () => void;
+  onScrubEnd: () => void;
+  isLooping: boolean;
+  onToggleLoop: () => void;
 }
 
 // CSS padding-bottom trick: height = 0, padding-bottom = ratio %
@@ -19,6 +33,60 @@ const ASPECT_PADDING: Record<AspectRatio, string> = {
 
 function artifactUrl(path: string): string {
   return `/api/artifacts?path=${encodeURIComponent(path)}`;
+}
+
+
+const MEDIA_STYLE: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  width: "100%",
+  height: "100%",
+  objectFit: "contain",
+  display: "block",
+};
+
+function renderSceneLayer(s: Scene) {
+  return (
+    <>
+      {s.type === "video" ? (
+        <video
+          key={s.src}
+          src={artifactUrl(s.src)}
+          muted
+          playsInline
+          style={MEDIA_STYLE}
+        />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={s.src}
+          src={artifactUrl(s.src)}
+          alt="Scene preview"
+          style={MEDIA_STYLE}
+        />
+      )}
+      {s.textOverlay && (
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            ...(s.textOverlay.position === "top"
+              ? { top: "8%" }
+              : s.textOverlay.position === "bottom"
+              ? { bottom: "8%" }
+              : { top: "50%", transform: "translateY(-50%)" }),
+            display: "flex",
+            justifyContent: "center",
+            padding: "0 8%",
+            pointerEvents: "none",
+          }}
+        >
+          <span style={overlayTextStyle(s.textOverlay.style)}>{s.textOverlay.text}</span>
+        </div>
+      )}
+    </>
+  );
 }
 
 function overlayTextStyle(style: TextOverlay["style"]): React.CSSProperties {
@@ -60,7 +128,76 @@ function overlayTextStyle(style: TextOverlay["style"]): React.CSSProperties {
   };
 }
 
-export function PreviewPlayer({ scene, aspectRatio, isPlaying, canPlay, onPlayPause }: PreviewPlayerProps) {
+export function PreviewPlayer({ scene, scenes, plan, playIndex, playEpoch, seekOffsetMs, isScrubbing, aspectRatio, isPlaying, canPlay, onPlayPause, onSeek, onScrubStart, onScrubEnd, isLooping, onToggleLoop }: PreviewPlayerProps) {
+  // ── Progress tracking ────────────────────────────────────────────────────
+  const [sceneElapsedMs, setSceneElapsedMs] = useState(0);
+  const rafRef = useRef<number | null>(null);
+  const lastTickRef = useRef<number | null>(null);
+  // Keep a ref so the playEpoch effect always reads the latest seekOffsetMs
+  const seekOffsetMsRef = useRef(seekOffsetMs);
+  seekOffsetMsRef.current = seekOffsetMs;
+  // Local ref tracks whether a pointer drag is in progress (avoids relying on React state for event gating)
+  const isDraggingRef = useRef(false);
+
+  // Reset scene-elapsed clock when a new scene epoch starts (play, advance, loop, seek)
+  useEffect(() => {
+    setSceneElapsedMs(seekOffsetMsRef.current);
+    lastTickRef.current = null;
+  }, [playEpoch]);
+
+  // RAF loop — runs only while playing and not scrubbing; local to PreviewPlayer only
+  useEffect(() => {
+    if (!isPlaying || isScrubbing) {
+      if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      lastTickRef.current = null;
+      return;
+    }
+    function tick(now: number) {
+      if (lastTickRef.current !== null) {
+        const delta = now - lastTickRef.current;
+        setSceneElapsedMs((prev) => prev + delta);
+      }
+      lastTickRef.current = now;
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; } };
+  }, [isPlaying, isScrubbing]);
+
+  // Derived progress values — resolved from pre-computed plan entries (O(1) lookups)
+  const activePlanEntry = plan.scenes[playIndex];
+  const priorMs = activePlanEntry?.startMs ?? 0;
+  const currentSceneDurationMs = activePlanEntry?.durationMs ?? 0;
+  const elapsedMs = priorMs + Math.min(sceneElapsedMs, currentSceneDurationMs);
+  const totalMs = plan.totalDurationMs;
+  const progress = totalMs > 0 ? Math.min(elapsedMs / totalMs, 1) : 0;
+
+  // Active-scene segment bounds as percentages
+  const activeStartPct = totalMs > 0 ? (priorMs / totalMs) * 100 : 0;
+  const activeEndPct   = totalMs > 0 ? (Math.min(priorMs + currentSceneDurationMs, totalMs) / totalMs) * 100 : 0;
+
+  // Scene-boundary tick positions as percentages (skip 0 % — that's the bar start)
+  const tickPcts: number[] = [];
+  if (totalMs > 0 && plan.scenes.length > 1) {
+    for (let i = 0; i < plan.scenes.length - 1; i++) {
+      tickPcts.push((plan.scenes[i]!.endMs / totalMs) * 100);
+    }
+  }
+
+  // Fade-transition progress (0 = no fade / cut; 1 = fully on next scene)
+  const nextScene = scenes[playIndex + 1] ?? null;
+  const currentScene = scenes[playIndex] ?? null;
+  const fadeProgress = currentScene
+    ? computeFadeProgress(currentScene, nextScene !== null, sceneElapsedMs)
+    : 0;
+
+  // ── Scrub helper ─────────────────────────────────────────────────────────
+  function seekFromPointer(e: React.PointerEvent<HTMLDivElement>) {
+    if (!canPlay || totalMs === 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const fraction = Math.max(0, Math.min((e.clientX - rect.left) / rect.width, 1));
+    onSeek(fraction * totalMs);
+  }
   return (
     <div
       style={{
@@ -102,58 +239,14 @@ export function PreviewPlayer({ scene, aspectRatio, isPlaying, canPlay, onPlayPa
               border: "1px solid var(--color-border)",
             }}
           >
-            {scene.type === "video" ? (
-              <video
-                key={scene.src}
-                src={artifactUrl(scene.src)}
-                controls
-                playsInline
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                  display: "block",
-                }}
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={scene.src}
-                src={artifactUrl(scene.src)}
-                alt="Scene preview"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                  display: "block",
-                }}
-              />
-            )}
-
-            {scene.textOverlay && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  ...(scene.textOverlay.position === "top"
-                    ? { top: "8%" }
-                    : scene.textOverlay.position === "bottom"
-                    ? { bottom: "8%" }
-                    : { top: "50%", transform: "translateY(-50%)" }),
-                  display: "flex",
-                  justifyContent: "center",
-                  padding: "0 8%",
-                  pointerEvents: "none",
-                }}
-              >
-                <span style={overlayTextStyle(scene.textOverlay.style)}>
-                  {scene.textOverlay.text}
-                </span>
+            {/* Outgoing (current) scene — fades out when transition === "fade" */}
+            <div style={{ position: "absolute", inset: 0, opacity: 1 - fadeProgress }}>
+              {renderSceneLayer(scene)}
+            </div>
+            {/* Incoming (next) scene — rendered only during a fade */}
+            {fadeProgress > 0 && nextScene && (
+              <div style={{ position: "absolute", inset: 0, opacity: fadeProgress }}>
+                {renderSceneLayer(nextScene)}
               </div>
             )}
           </div>
@@ -230,13 +323,93 @@ export function PreviewPlayer({ scene, aspectRatio, isPlaying, canPlay, onPlayPa
         style={{
           borderTop: "1px solid var(--color-border)",
           backgroundColor: "var(--color-bg-secondary)",
-          padding: "8px 16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
           flexShrink: 0,
         }}
       >
+        {/* Progress bar — 12 px hit area, 3 px visual track, drag-to-scrub */}
+        <div
+          aria-label="Seek"
+          onPointerDown={(e) => {
+            if (!canPlay || totalMs === 0) return;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            isDraggingRef.current = true;
+            onScrubStart();
+            seekFromPointer(e);
+          }}
+          onPointerMove={(e) => {
+            if (!isDraggingRef.current) return;
+            seekFromPointer(e);
+          }}
+          onPointerUp={(e) => {
+            if (!isDraggingRef.current) return;
+            isDraggingRef.current = false;
+            seekFromPointer(e);
+            onScrubEnd();
+          }}
+          onPointerCancel={() => {
+            if (!isDraggingRef.current) return;
+            isDraggingRef.current = false;
+            onScrubEnd();
+          }}
+          style={{
+            height: 12,
+            display: "flex",
+            alignItems: "center",
+            cursor: canPlay ? "pointer" : "default",
+            position: "relative",
+            touchAction: "none",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              height: 3,
+              backgroundColor: "var(--color-border)",
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${progress * 100}%`,
+                backgroundColor: "var(--color-accent)",
+              }}
+            />
+            {activeEndPct > activeStartPct && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  left: `${activeStartPct}%`,
+                  width: `${activeEndPct - activeStartPct}%`,
+                  backgroundColor: "var(--color-accent)",
+                  opacity: 0.25,
+                  pointerEvents: "none",
+                }}
+              />
+            )}
+            {tickPcts.map((pct) => (
+              <div
+                key={pct}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  left: `${pct}%`,
+                  width: 1,
+                  backgroundColor: "var(--color-bg-secondary)",
+                  opacity: 0.7,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Button row */}
+        <div style={{ padding: "6px 12px", display: "flex", alignItems: "center", gap: 8 }}>
         <button
           type="button"
           onClick={onPlayPause}
@@ -269,7 +442,69 @@ export function PreviewPlayer({ scene, aspectRatio, isPlaying, canPlay, onPlayPa
             </svg>
           )}
         </button>
+
+        <button
+          type="button"
+          onClick={onToggleLoop}
+          title={isLooping ? "Loop on" : "Loop off"}
+          aria-label={isLooping ? "Disable loop" : "Enable loop"}
+          aria-pressed={isLooping}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            border: `1px solid ${isLooping ? "var(--color-accent)" : "var(--color-border)"}`,
+            backgroundColor: isLooping ? "rgba(59,130,246,0.10)" : "transparent",
+            color: isLooping ? "var(--color-accent)" : "var(--color-text-muted)",
+            cursor: "pointer",
+            transition: "border-color 120ms, color 120ms, background-color 120ms",
+          }}
+        >
+          <svg width={12} height={12} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M1 5A4 4 0 0 1 8.5 2L10 2" />
+            <path d="M8 1l2 1-2 1" />
+            <path d="M11 7A4 4 0 0 1 3.5 10L2 10" />
+            <path d="M4 11l-2-1 2-1" />
+          </svg>
+        </button>
+
+          <div style={{ flex: 1 }} />
+
+          {scenes.length > 0 && (
+            <span
+              style={{
+                fontSize: 10,
+                color: "var(--color-text-muted)",
+                flexShrink: 0,
+              }}
+            >
+              Scene {playIndex + 1} / {scenes.length}
+            </span>
+          )}
+
+          <span
+            style={{
+              fontSize: 10,
+              color: "var(--color-text-muted)",
+              fontVariantNumeric: "tabular-nums",
+              flexShrink: 0,
+            }}
+          >
+            {formatTime(elapsedMs)} / {formatTime(totalMs)}
+          </span>
+        </div>
       </div>
     </div>
   );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatTime(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  return m > 0 ? `${m}:${String(s % 60).padStart(2, "0")}` : `${s}s`;
 }

@@ -127,3 +127,11 @@ export type {
 } from "./templatePack.js";
 
 export { registerBuiltInPacks } from "./builtinPacks.js";
+
+// ── Export Job Contract ──
+export {
+  ExportTextOverlaySchema,
+  ExportSceneEntrySchema,
+  ExportJobPayloadSchema,
+} from "./exportJob.js";
+export type { ExportTextOverlay, ExportSceneEntry, ExportJobPayload } from "./exportJob.js";

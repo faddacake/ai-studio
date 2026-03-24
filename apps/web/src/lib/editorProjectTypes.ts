@@ -19,11 +19,30 @@ export interface Scene {
   type: "image" | "video";
   /** Absolute artifact path — served via /api/artifacts?path=<src>. */
   src: string;
-  /** Duration in seconds. For video scenes this may be overridden by the clip length. */
+  /**
+   * Scene duration in seconds — the playback window on the timeline.
+   *
+   * For **image** scenes: how long the image is displayed.
+   * For **video** scenes: how long the scene occupies the timeline. The video
+   *   plays from its beginning for this many seconds. If shorter than the clip's
+   *   natural length the video is cut off when the scene advances; if longer the
+   *   video freezes on its last frame. This is NOT a trim of the source file.
+   *
+   * Minimum: MIN_SCENE_DURATION_S (0.1 s). Precision: 0.1 s.
+   */
   duration: number;
+  /**
+   * Detected natural duration of the video clip in seconds, populated once on
+   * first metadata load. Absent for image scenes or before metadata has loaded.
+   * Never used for playback timing — `duration` is always the authoritative
+   * playback window.
+   */
+  naturalDuration?: number;
   textOverlay?: TextOverlay;
   /** Simple cut-or-fade transition into the next scene. */
   transition?: "cut" | "fade";
+  /** Fade duration in milliseconds. Only used when transition === "fade". Defaults to 800 ms. */
+  fadeDurationMs?: number;
 }
 
 export interface AudioTrack {

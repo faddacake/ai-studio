@@ -98,6 +98,8 @@ export default function RunDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [selectedArtifactIdx, setSelectedArtifactIdx] = useState(0);
   const [bundleState, setBundleState] = useState<"idle" | "downloading" | "error">("idle");
+  const [sendingToEditor, setSendingToEditor] = useState(false);
+  const [sendAspectRatio, setSendAspectRatio] = useState<"16:9" | "9:16" | "1:1">("16:9");
   const [rerunning, setRerunning] = useState(false);
   const [rerunError, setRerunError] = useState<string | null>(null);
   const [copiedRunId, setCopiedRunId] = useState(false);
@@ -221,6 +223,42 @@ export default function RunDetailPage({
       setBundleState("idle");
     } catch {
       setBundleState("error");
+    }
+  }
+
+  async function handleSendToEditor() {
+    if (sendingToEditor) return;
+    const effectiveArtifacts =
+      selectedPaths === null
+        ? previewArtifacts
+        : previewArtifacts.filter((a) => selectedPaths.has(a.artifactPath));
+    if (effectiveArtifacts.length === 0) return;
+
+    setSendingToEditor(true);
+    try {
+      const scenes = effectiveArtifacts.map((a) => {
+        const isVideo = a.mimeType?.startsWith("video/") ?? false;
+        return {
+          id: crypto.randomUUID(),
+          type: isVideo ? "video" as const : "image" as const,
+          src: a.artifactPath,
+          duration: isVideo ? 10 : 5,
+        };
+      });
+      const res = await fetch("/api/editor-projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `Run ${runId.slice(0, 8)}`,
+          aspectRatio: sendAspectRatio,
+          scenes,
+        }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const project = (await res.json()) as { id: string };
+      router.push(`/editor/${project.id}`);
+    } catch {
+      setSendingToEditor(false);
     }
   }
 
@@ -560,6 +598,51 @@ export default function RunDetailPage({
             >
               {compareLoading ? "Loading…" : compareOpen ? "Hide Comparison" : compareNoPrev ? "No prev run" : "Compare ↑ Prev"}
             </button>
+
+            {previewArtifacts.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <select
+                  value={sendAspectRatio}
+                  onChange={(e) => setSendAspectRatio(e.target.value as "16:9" | "9:16" | "1:1")}
+                  disabled={sendingToEditor}
+                  title="Aspect ratio for the new Video Editor project"
+                  style={{
+                    fontSize: 11,
+                    padding: "4px 6px",
+                    background: "var(--color-bg-secondary)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 5,
+                    color: "var(--color-text-muted)",
+                    cursor: sendingToEditor ? "default" : "pointer",
+                    outline: "none",
+                  }}
+                >
+                  <option value="16:9">16:9</option>
+                  <option value="9:16">9:16</option>
+                  <option value="1:1">1:1</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={handleSendToEditor}
+                  disabled={sendingToEditor || noArtifactsSelected}
+                  title={noArtifactsSelected ? "Select at least one artifact to send" : "Create a new Video Editor project from selected artifacts"}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: "6px 14px",
+                    borderRadius: 6,
+                    border: "1px solid var(--color-border)",
+                    backgroundColor: "transparent",
+                    color: sendingToEditor || noArtifactsSelected
+                      ? "var(--color-text-muted)"
+                      : "var(--color-text-secondary)",
+                    cursor: sendingToEditor || noArtifactsSelected ? "default" : "pointer",
+                  }}
+                >
+                  {sendingToEditor ? "Sending…" : "Send to Video Editor"}
+                </button>
+              </div>
+            )}
 
             {bundleState === "error" && (
               <span style={{ fontSize: 11, color: "var(--color-error)" }}>

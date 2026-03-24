@@ -1,5 +1,526 @@
 # SESSION CONTEXT — AI Studio
 
+Date: 2026-03-24
+Session: Video Editor — minimal export-job contract derived from RenderPlan ✅ SHIPPED
+
+---
+
+## Session Summary — Canonical render-plan serialization added (2026-03-24)
+
+Created `src/lib/renderPlan.ts` — a pure serialization layer that converts an ordered scene list into an explicit timeline model suitable for both PreviewPlayer consistency checks and future export work.
+
+**`SceneEntry` shape** (per scene):
+- Identity: `id`, `index`, `type`
+- Source: `src` (artifact path)
+- Duration/position: `durationMs`, `startMs`, `endMs` (absolute, contiguous, derived in a single left-to-right pass)
+- Transition: `transition` ("cut" | "fade"), `fadeDurationMs` (effective — 0 for cuts, 0 for last scene, capped at 50% of `durationMs`), `fadeStartMs` (= `endMs − fadeDurationMs`)
+- Overlay: `textOverlay` (`TextOverlay | null`)
+- Video context: `naturalDurationMs` (`number | null` — context only, not used for timing)
+
+**`RenderPlan` shape**: `totalDurationMs` + `readonly SceneEntry[]`.
+
+**`buildRenderPlan(scenes)`**: single-pass pure function; delegates fade math to `effectiveFadeDurationMs` from `sceneTiming.ts`. No new rules. Deterministic and serialization-friendly.
+
+**`PreviewPlayer` adoption**: added `plan: RenderPlan` prop. Replaced three O(n) `sceneStartMs` / `totalDurationMs` / tick-accumulation calls with O(1) plan lookups (`activePlanEntry.startMs`, `activePlanEntry.durationMs`, `plan.totalDurationMs`, `plan.scenes[i].endMs`). Removed now-unused `totalDurationMs` and `sceneStartMs` imports from `sceneTiming`. `computeFadeProgress` retained as-is (uses original scene object).
+
+**`EditorShell`**: derives `const plan = buildRenderPlan(scenes)` inline and passes it to `<PreviewPlayer>`.
+
+52 new tests in `src/lib/renderPlan.test.ts` across 12 suites: empty list, single image, single video (with `naturalDuration`), three-scene timeline positions, cut/fade transitions, custom fade durations, fade cap at 50%, last-scene no-fade, overlay preservation, mixed types, cross-cutting invariants (endMs = startMs + durationMs; fadeStartMs = endMs − fadeDurationMs; fade cap; last-fade-is-zero; index alignment), and duration-semantics consistency. All 149 lib tests pass. TypeScript typecheck clean; no backend or schema changes.
+
+Next recommended task: Use the render plan as the payload shape for a future export job — define the minimal export-request type and a stub API route that accepts a `RenderPlan` and returns a job ID, without implementing the FFmpeg pipeline yet.
+
+---
+
+## Session Summary — Minimal export-job contract derived from RenderPlan (2026-03-24)
+
+Defined and exercised the minimal export-job payload contract that bridges the editor's canonical `RenderPlan` to future backend rendering.
+
+**`packages/shared/src/exportJob.ts`** (new) — Zod schemas and inferred TypeScript types:
+- `ExportTextOverlaySchema` / `ExportTextOverlay`
+- `ExportSceneEntrySchema` / `ExportSceneEntry` — per-scene renderer fields: `id`, `index`, `type`, `src`, `durationMs`, `startMs`, `endMs`, `transition`, `fadeDurationMs`, `fadeStartMs`, `textOverlay | null`. `naturalDurationMs` intentionally excluded (UI-only context, no renderer value).
+- `ExportJobPayloadSchema` / `ExportJobPayload` — top-level: `projectId`, `aspectRatio`, `totalDurationMs`, `scenes` (min 1). All exported from `packages/shared/src/index.ts`.
+- Package rebuilt (`tsc`) so `dist/` is current.
+
+**`apps/web/src/lib/exportPayload.ts`** (new) — pure `buildExportPayload(plan, projectId, aspectRatio)` builder: single map over `plan.scenes`, copies renderer-relevant fields, drops `naturalDurationMs`. No timing math re-derived; all values come from the pre-built plan.
+
+**`apps/web/src/app/api/editor-projects/[id]/export/route.ts`** (new) — stub `POST` route: loads project by ID → builds render plan → builds export payload → validates with `ExportJobPayloadSchema.safeParse` → returns `202 Accepted` with `{ status: "accepted", jobId: null, payload }`. Schema validation failure returns 500 (would indicate a builder bug). Empty-scenes project returns 422.
+
+**Tests (43 new across two packages):**
+- `packages/shared/src/exportJob.test.ts` (43 cases) — Zod schema acceptance and rejection for `ExportTextOverlaySchema`, `ExportSceneEntrySchema`, `ExportJobPayloadSchema`: valid single/multi-scene payloads, all aspect ratios, fade scenes, overlays; rejects empty id/src, zero/negative durations, unknown transitions/positions/styles, empty scenes array, missing required fields.
+- `apps/web/src/lib/exportPayload.test.ts` (33 cases) — builder unit tests: top-level field forwarding, per-scene field mapping, `naturalDurationMs` absence, cut/fade/custom-fade, last-scene fade suppression, overlay preservation, mixed types, aspect ratio variants, structural invariants (endMs = startMs + durationMs; fadeStartMs = endMs − fadeDurationMs; index alignment; last-scene fade = 0).
+
+182 web + 43 shared = 225 tests passing. Both TypeScript typechecks clean. No backend/schema migrations, no rendering work.
+
+Next recommended task: Add a stub server entrypoint that accepts the validated export payload and returns a structured "not yet implemented" result so the backend boundary is exercised end-to-end — or begin the queue-wiring layer that submits `ExportJobPayload` to a BullMQ job for processing.
+
+---
+
+## Previous Session — Canonical render-plan serialization added (2026-03-24)
+
+---
+
+## Session Summary — Canonical render-plan serialization added (2026-03-24)
+
+Created `src/lib/renderPlan.ts` — a pure serialization layer that converts an ordered scene list into an explicit timeline model suitable for both PreviewPlayer consistency checks and future export work.
+
+**`SceneEntry` shape** (per scene):
+- Identity: `id`, `index`, `type`
+- Source: `src` (artifact path)
+- Duration/position: `durationMs`, `startMs`, `endMs` (absolute, contiguous, derived in a single left-to-right pass)
+- Transition: `transition` ("cut" | "fade"), `fadeDurationMs` (effective — 0 for cuts, 0 for last scene, capped at 50% of `durationMs`), `fadeStartMs` (= `endMs − fadeDurationMs`)
+- Overlay: `textOverlay` (`TextOverlay | null`)
+- Video context: `naturalDurationMs` (`number | null` — context only, not used for timing)
+
+**`RenderPlan` shape**: `totalDurationMs` + `readonly SceneEntry[]`.
+
+**`buildRenderPlan(scenes)`**: single-pass pure function; delegates fade math to `effectiveFadeDurationMs` from `sceneTiming.ts`. No new rules. Deterministic and serialization-friendly.
+
+**`PreviewPlayer` adoption**: added `plan: RenderPlan` prop. Replaced three O(n) `sceneStartMs` / `totalDurationMs` / tick-accumulation calls with O(1) plan lookups (`activePlanEntry.startMs`, `activePlanEntry.durationMs`, `plan.totalDurationMs`, `plan.scenes[i].endMs`). Removed now-unused `totalDurationMs` and `sceneStartMs` imports from `sceneTiming`. `computeFadeProgress` retained as-is (uses original scene object).
+
+**`EditorShell`**: derives `const plan = buildRenderPlan(scenes)` inline and passes it to `<PreviewPlayer>`.
+
+52 new tests in `src/lib/renderPlan.test.ts` across 12 suites: empty list, single image, single video (with `naturalDuration`), three-scene timeline positions, cut/fade transitions, custom fade durations, fade cap at 50%, last-scene no-fade, overlay preservation, mixed types, cross-cutting invariants (endMs = startMs + durationMs; fadeStartMs = endMs − fadeDurationMs; fade cap; last-fade-is-zero; index alignment), and duration-semantics consistency. All 149 lib tests pass. TypeScript typecheck clean; no backend or schema changes.
+
+Next recommended task: Use the render plan as the payload shape for a future export job — define the minimal export-request type and a stub API route that accepts a `RenderPlan` and returns a job ID, without implementing the FFmpeg pipeline yet.
+
+---
+
+## Previous Session — Scene-duration semantics standardized (2026-03-24)
+
+---
+
+## Session Summary — End-of-timeline and replay behavior standardized (2026-03-24)
+
+Identified two related bugs around what happens at timeline end:
+
+1. **Natural end left `seekOffsetMs = 0`** — after the last scene's timer fired, `isPlaying` was set to false but `seekOffsetMs` stayed at 0 (start of last scene), not the end. This meant `effectiveTimelineMs` reported ~10 s short of `totalDurationMs`, so the progress bar didn't reach 100% and the "replay vs resume" check in `handlePlayPause` couldn't detect the ended state.
+2. **Play after end replayed only the last scene** — `handlePlayPause` called `resolvePlayStart` which preserved `seekOffsetMs = 0` on the last scene → set play from the last scene's start, not from the beginning of the timeline.
+
+Fix:
+- Added `resolveReplay(scenes, playIndex, seekOffsetMs, selectedId)` to `playbackCoherence.ts`. It first checks `effectiveTimelineMs(scenes, playIndex, seekOffsetMs) >= totalDurationMs(scenes)` — if true, returns `{0, 0}` (restart from top); otherwise delegates to `resolvePlayStart`. This is the single rule for "what does Play do after end".
+- Natural-end branch in EditorShell's advance-timer effect now calls `setSeekOffsetMs(scene.duration * 1000)` and `setPlayEpoch(e => e + 1)` before `setIsPlaying(false)`, parking the timeline cursor at exactly 100%.
+- `handlePlayPause` play branch now calls `resolveReplay` instead of `resolvePlayStart`.
+
+8 new tests for `resolveReplay` (empty, at-end via park, at-end via seek, beyond-duration, mid-scene resume, scene-switch reset, start-of-last-scene no-restart, mid-timeline boundary). All 84 lib tests pass. TypeScript typecheck clean; no backend or schema changes.
+
+Next recommended task: Surface the export pipeline — build a `serializeTimeline` utility that converts the in-memory scene list into a format suitable for FFmpeg/server-side rendering, leveraging the canonical timing math already in `sceneTiming.ts`.
+
+---
+
+## Session Summary — Scene-duration semantics standardized (2026-03-24)
+
+Identified five duration-related problems across the editor:
+
+1. **Misleading type comment** — `editorProjectTypes.ts` said "For video scenes this may be overridden by the clip length," implying auto-detection that was never implemented.
+2. **Validation inconsistency** — `SceneInspector` enforced min ≥ 1 s; `SceneList` allowed any `val > 0` (down to fractions of a millisecond). No shared constant existed.
+3. **No canonical min/clamp helper** — both edit surfaces hand-rolled rounding and clamping with different thresholds.
+4. **Misleading `controls` on preview video** — `PreviewPlayer`'s `renderSceneLayer` rendered a `<video controls>` element whose browser-native controls were completely out of sync with the editor timeline (no autoplay, no play/pause sync, no seek sync). Users could interact with the controls but nothing would happen in the editor.
+5. **No `naturalDuration` for video scenes** — video scenes defaulted to 10 s with no mechanism to communicate the clip's actual length. The Inspector had no way to tell users that "Duration" is a playback window, not a trim.
+
+Changes:
+
+- **`sceneTiming.ts`**: Added `MIN_SCENE_DURATION_S = 0.1` (the shared minimum) and `clampDurationS(val)` (rounds to 0.1 s, enforces MIN) — the single place all duration-input validation calls.
+- **`editorProjectTypes.ts`**: Replaced misleading comment with a precise multi-line doc: image = display time; video = playback window, not a trim; minimum is MIN_SCENE_DURATION_S. Added `naturalDuration?: number` field: populated once from video metadata, never drives playback, used only as UI context.
+- **`SceneList.tsx`**: Imports and calls `clampDurationS`. Added `onVideoDurationDetected` prop (optional); SceneCard's video thumbnail fires `onLoadedMetadata` → if `scene.naturalDuration === undefined`, calls the callback with the detected clip length (one-shot: suppressed once `naturalDuration` is set).
+- **`SceneInspector.tsx`**: Imports and calls `clampDurationS`; `min` attribute now uses `MIN_SCENE_DURATION_S`. For video scenes, renders a small hint below the duration field: shows the clip's natural duration if detected ("Clip: 28.5s · playback window, not a trim") or a generic note before detection.
+- **`PreviewPlayer.tsx`**: Removed `controls` from `renderSceneLayer` video element; added `muted playsInline`. Browser controls implied interactive video control that was never wired; removing them is honest. (Full video play/pause sync with editor state is a known follow-up task.)
+- **`EditorShell.tsx`**: Imports `clampDurationS`. Added `handleVideoDurationDetected(idx, naturalSecs)`: records `naturalDuration` on the scene and, if `scene.duration` is still the video default (10 s), adopts the detected clip length as the initial playback window.
+
+13 new tests: `clampDurationS` rounding and min-enforcement (8 cases); image vs video timing-math equivalence (3 cases); fade-cap and fade-progress at MIN duration (2 cases). All 97 lib tests pass. TypeScript typecheck clean; no backend or schema changes.
+
+Known follow-up: video play/pause/seek in the preview should be synchronized with the editor's `isPlaying`/`seekOffsetMs` state (requires a ref + imperative `video.play()` / `video.pause()` / `video.currentTime` in a new effect).
+
+Next recommended task: Export pipeline — build a `serializeTimeline` utility that converts the in-memory scene list into a format suitable for FFmpeg/server-side rendering, leveraging the canonical timing math already in `sceneTiming.ts`.
+
+---
+
+## Previous Session — End-of-timeline and replay behavior standardized (2026-03-24)
+
+---
+
+## Session Summary — End-of-timeline and replay behavior standardized (2026-03-24)
+
+Identified two related bugs around what happens at timeline end:
+
+1. **Natural end left `seekOffsetMs = 0`** — after the last scene's timer fired, `isPlaying` was set to false but `seekOffsetMs` stayed at 0 (start of last scene), not the end. This meant `effectiveTimelineMs` reported ~10 s short of `totalDurationMs`, so the progress bar didn't reach 100% and the "replay vs resume" check in `handlePlayPause` couldn't detect the ended state.
+2. **Play after end replayed only the last scene** — `handlePlayPause` called `resolvePlayStart` which preserved `seekOffsetMs = 0` on the last scene → set play from the last scene's start, not from the beginning of the timeline.
+
+Fix:
+- Added `resolveReplay(scenes, playIndex, seekOffsetMs, selectedId)` to `playbackCoherence.ts`. It first checks `effectiveTimelineMs(scenes, playIndex, seekOffsetMs) >= totalDurationMs(scenes)` — if true, returns `{0, 0}` (restart from top); otherwise delegates to `resolvePlayStart`. This is the single rule for "what does Play do after end".
+- Natural-end branch in EditorShell's advance-timer effect now calls `setSeekOffsetMs(scene.duration * 1000)` and `setPlayEpoch(e => e + 1)` before `setIsPlaying(false)`, parking the timeline cursor at exactly 100%.
+- `handlePlayPause` play branch now calls `resolveReplay` instead of `resolvePlayStart`.
+
+8 new tests for `resolveReplay` (empty, at-end via park, at-end via seek, beyond-duration, mid-scene resume, scene-switch reset, start-of-last-scene no-restart, mid-timeline boundary). All 84 lib tests pass. TypeScript typecheck clean; no backend or schema changes.
+
+Next recommended task: Surface the export pipeline — build a `serializeTimeline` utility that converts the in-memory scene list into a format suitable for FFmpeg/server-side rendering, leveraging the canonical timing math already in `sceneTiming.ts`.
+
+---
+
+## Previous Session — Active-scene authority standardized (2026-03-24)
+
+Identified three active-scene authority problems: (1) SceneList had dual simultaneous highlights — a blue border driven by `selectedId` and a left accent bar driven by `playIndex` — which could mark two different scenes at once; (2) when playback ended naturally (last scene finished, not looping), `selectedId` was not synced to `playIndex`, causing the preview to jump back to the stale selected scene; (3) EditorShell, SceneList, and PreviewPlayer each independently derived "which scene is active" with no shared rule.
+
+Fix: Added `resolveActiveId(scenes, playIndex, selectedId, isPlaying)` to `playbackCoherence.ts` — the single pure function that encodes the authority rule: *playing → `scenes[playIndex].id`; paused → `selectedId`*. EditorShell now derives `activeId` from this helper and uses it to produce `activeScene` (replacing the old `isPlaying ? scenes[playIndex] : selectedScene` inline ternary). SceneList was simplified from 10 props to 8 by replacing `selectedId/isPlaying/playIndex` with a single `activeId` prop; SceneCard's dual `isSelected`/`isNowPlaying` highlights were unified into a single `isActive` flag, eliminating the split-highlight bug. The advance-timer effect now calls `setSelectedId(scenes[playIndex]?.id)` before `setIsPlaying(false)` so the paused preview is always consistent after natural playback end. 13 new tests cover `resolveActiveId` across paused, playing, boundary, and natural-end scenarios. All 76 lib tests pass. TypeScript typecheck clean; no backend or schema changes.
+
+Next recommended task: Use the new active-scene authority model to simplify SceneList and Inspector derivation so fewer manual sync effects are needed.
+
+---
+
+## Previous Session — Scrub/seek/play synchronization hardened ✅ SHIPPED
+
+---
+
+## Session Summary — Scrub/seek/play synchronization hardened (2026-03-24)
+
+Identified two clock-sync bugs in the EditorShell/PreviewPlayer contract:
+
+1. **`handlePlayPause` discarded `seekOffsetMs` on resume** — always reset to 0 regardless of scrub/seek position, so seeking while paused then pressing play jumped back to scene start instead of the scrubbed position.
+2. **Pausing did not sync `selectedId` to `playIndex`** — the preview showed the previously-selected scene while the progress bar reflected the scene that was playing, creating a visible mismatch.
+
+Fix: Added `resolvePlayStart(scenes, playIndex, seekOffsetMs, selectedId)` to `playbackCoherence.ts` — a pure function that preserves `seekOffsetMs` when resuming on the same scene and resets to 0 only when switching to a different selected scene. `handlePlayPause` now calls this instead of unconditionally resetting offset, and on pause syncs `selectedId` to `scenes[playIndex]?.id`.
+
+Added `effectiveTimelineMs(scenes, playIndex, seekOffsetMs)` to `sceneTiming.ts` as the single canonical timeline position derivation (prior scene sum + clamped intra-scene offset) — the value all progress bar, elapsed display, and resume-clock logic should derive from.
+
+15 new tests: 8 for `effectiveTimelineMs` (mid-scene, boundary, clamp, round-trip with `activeSceneIndex`) and 7 for `resolvePlayStart` (seek-then-play, scene-switch-then-play, null/missing selected ID, empty timeline). All 63 lib tests pass. TypeScript typecheck clean; no backend or schema changes.
+
+Next recommended task: Make scene edits preserve user playback intent predictably by keeping timeline position stable across reorder/insert/delete when possible.
+
+---
+
+## Previous Session — Playback state coherence under live scene edits ✅ SHIPPED
+
+---
+
+## Session Summary — Playback state coherence under live scene edits (2026-03-24)
+
+Created `src/lib/playbackCoherence.ts` — four pure, dependency-free helpers (`afterRemove`, `afterMove`, `afterReorder`, `afterDurationEdit`) that compute corrected `playIndex`/`seekOffsetMs` after each class of scene-list mutation. Wired them into the EditorShell handlers: `handleRemoveScene` now applies `afterRemove` to shift, clamp, or stop based on where the deletion fell relative to the active scene; `handleMoveScene` uses `afterMove` to follow the active scene through swaps; `handleReorderScenes` uses `afterReorder` to find the active scene's new index by ID; `handleDurationChange` and `handleSceneDurationChange` use `afterDurationEdit` to clamp `seekOffsetMs` when the active scene is shortened. The coherence safety-net effect was tightened: it no longer stops playback when merely clamping an out-of-bounds index (only empty timelines stop playback). `handleSeek` was refactored to use `totalDurationMs`, `activeSceneIndex`, and `sceneStartMs` from `sceneTiming` in place of the inline reduce loop. 23 new focused tests cover delete (before/at/after/last/empty), move (boundary, active, neighbor), reorder (full reversal, ID-tracking), and duration-edit (clamp, preserve, other scene); all 48 lib tests pass. TypeScript typecheck clean; no backend or schema changes.
+
+Next recommended task: Make scene edits preserve user playback intent predictably by keeping timeline position stable across reorder/insert/delete when possible.
+
+---
+
+## Previous Session — Canonical transition timing model extracted ✅ SHIPPED
+
+Extracted all scene-timeline math from `PreviewPlayer` into a new pure utility `src/lib/sceneTiming.ts`. The utility exports: `DEFAULT_FADE_MS`, `totalDurationMs`, `sceneStartMs`, `effectiveFadeDurationMs`, `computeFadeProgress`, and `activeSceneIndex` — all dependency-free functions safe to use in tests, export pipelines, and components. `PreviewPlayer` now calls `sceneStartMs`, `totalDurationMs`, and `computeFadeProgress` instead of inline reduces and hand-rolled fade math; the FADE_MS constant was removed from the component. Behavior is unchanged. 25 focused tests covering cut/fade scenes, default and custom `fadeDurationMs`, the 50% duration cap, boundary times, and last-scene no-fade behavior all pass. A `test:lib` script was added to `package.json` (`node --import tsx --test 'src/lib/*.test.ts'`). TypeScript typecheck clean; no backend or schema changes.
+
+Next recommended task: Use the new shared timing model to make export-ready timeline serialization straightforward without yet building the export pipeline.
+
+---
+
+## Previous Session — Playback Progress Bar and Time Display ✅ SHIPPED
+
+---
+
+## Session Summary — Playback Progress Bar and Time Display (2026-03-24)
+
+Added a 3 px accent progress bar and a compact `Xs / Ys` elapsed/total time display to `PreviewPlayer`'s controls area. To avoid causing ~60 fps re-renders of the full `EditorShell` tree, all timing state lives in `PreviewPlayer` itself: a `sceneElapsedMs` local state driven by a RAF loop (`[isPlaying]` effect) that accumulates `now - lastTick` deltas each frame. `EditorShell` adds a `playEpoch` counter (incremented on fresh play, each scene advance, and each loop restart) that `PreviewPlayer` watches via a `[playEpoch]` effect to reset `sceneElapsedMs` to 0. Progress math is pure derivation: `elapsedMs = priorMs + min(sceneElapsedMs, currentSceneDurationMs)`, `totalMs = sum(all scene durations)`, `progress = elapsedMs / totalMs`. The RAF loop and epoch reset are independent effects with correct cleanup; time is formatted by a small `formatTime` helper that shows `Xs` for sub-minute totals and `M:SS` for longer ones. TypeScript typecheck clean; no backend or schema changes.
+
+**Next recommended task:** Add a scene preview to the `SceneInspector` header — show a small thumbnail of the selected scene's artifact at the top of the inspector panel so users have a visual reference while editing duration, transition, and overlay properties without needing to look at the main preview.
+
+**Suggested title:** `Video Editor SceneInspector — selected-scene thumbnail in inspector header`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor Playback — Loop Toggle ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor Playback Loop Toggle (2026-03-24)
+
+Added `isLooping` state to `EditorShell` with a companion `isLoopingRef` kept in sync via a dedicated `useEffect`. The ref is read inside the `setTimeout` callback rather than closing over `isLooping` directly, so toggling loop mid-scene does not restart the current countdown — only the end-of-sequence branch changes: `setPlayIndex(0)` to loop, `setIsPlaying(false)` to stop. `handleToggleLoop` is a simple `useCallback(() => setIsLooping(v => !v), [])`. `PreviewPlayer` gained `isLooping`/`onToggleLoop` props and a loop icon button in the controls bar (accent border + tinted background when active, `aria-pressed` for accessibility). The SceneList now-playing indicator continues to work correctly through loop restarts because `playIndex` resets to 0 via the same `setPlayIndex` path. TypeScript typecheck clean; no backend or schema changes.
+
+**Next recommended task:** Add a "restart from beginning" button to the playback controls bar — a `⏮` / skip-back icon that resets `playIndex` to 0 and, if currently playing, keeps `isPlaying` true so the sequence immediately restarts from the first scene without requiring a stop-then-play cycle.
+
+**Suggested title:** `Video Editor playback — restart / skip-to-beginning control`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor — Now-Playing Scene Indicator in SceneList ✅ SHIPPED
+
+---
+
+## Session Summary — Now-Playing Scene Indicator in SceneList (2026-03-24)
+
+Added `isPlaying` and `playIndex` props to `SceneList` and threaded `isNowPlaying={isPlaying && idx === playIndex}` into each `SceneCard`. The visual treatment is an `inset 3px 0 0 var(--color-accent)` left-stripe `boxShadow` on the card's root div — this is layout-free (no border-box impact), visually distinct from the `1px solid` selection border, and compatible with all existing badge positions. The stripe appears and clears immediately as `playIndex` advances during playback or `isPlaying` becomes false at sequence end. EditorShell's `SceneList` call gained `isPlaying={isPlaying}` and `playIndex={playIndex}`. No new state, timers, or logic outside EditorShell were introduced. TypeScript typecheck clean; no backend or schema changes.
+
+**Next recommended task:** Add a looping toggle to the Video Editor playback controls so users can opt into continuous loop playback — a small loop icon button next to Play/Pause in PreviewPlayer's controls bar, backed by an `isLooping` boolean in EditorShell that changes the end-of-sequence behavior from stop to restart at index 0.
+
+**Suggested title:** `Video Editor playback — loop toggle`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor V1 — Playback Foundation ✅ SHIPPED (milestone/video-editor-playback-foundation)
+
+---
+
+## Session Summary — Video Editor Playback Foundation (2026-03-24)
+
+Implemented the first time-based playback system for the Video Editor as a milestone commit on `milestone/video-editor-playback-foundation`. EditorShell gained `isPlaying` and `playIndex` state plus a derived `activeScene` (`isPlaying ? scenes[playIndex] ?? null : selectedScene`) that drives PreviewPlayer while leaving SceneInspector on `selectedScene`. Two `useEffect`s own the playback lifecycle: a clamping guard that stops and resets `playIndex` whenever `scenes.length` shrinks, and a timer effect that fires `setTimeout(scene.duration * 1000)` for the current scene, advances to the next, or stops at the last scene — with `clearTimeout` cleanup on every dependency change preventing timer races on rapid play/pause or scene edits. `handlePlayPause` starts from the currently selected scene's index. PreviewPlayer was restructured from a centred flex block to a column with a persistent controls bar containing a Play/Pause button (inline SVG, accent-filled while playing, disabled when no scenes). `EditorToolbar.tsx` was not touched. TypeScript typecheck clean; no backend or schema changes.
+
+**Next recommended task:** Add a "now playing" scene indicator to `SceneList` — while `isPlaying`, highlight the card at `playIndex` with a subtle accent treatment (e.g. a left border stripe or a small ▶ badge) so the user can see which scene is currently advancing without adding a full timeline scrubber.
+
+**Suggested title:** `Video Editor SceneList — now-playing scene indicator during playback`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor PreviewPlayer — Empty-State Prompt ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor PreviewPlayer Empty-State Prompt (2026-03-24)
+
+Updated the empty-state copy in `PreviewPlayer` from "No scenes — add a scene to get started" to "Select a scene to preview". The existing muted film-frame SVG icon, centered layout, and `color-text-muted` styling were all preserved — only the text changed. Because `EditorShell` already passes `scene={selectedScene}` with a `scenes[0] ?? null` fallback, `scene === null` only occurs when there are genuinely no scenes; the single empty-state path covers both no-scenes and no-selection contexts without branching. No EditorShell changes were required. TypeScript typecheck clean; no backend or schema changes.
+
+**Next recommended task:** Surface a back-link from the Video Editor (`/editor/[id]`) to the `/editor` dashboard so users can navigate to their project list without going through the Workflows breadcrumb — add a "← Projects" or "All Projects" link to `EditorToolbar` alongside the existing `← Workflows` breadcrumb.
+
+**Suggested title:** `Video Editor toolbar — add back-link to /editor dashboard`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor Toolbar — Save Confirmation Indicator ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor Toolbar Save Confirmation Indicator (2026-03-24)
+
+Added a `✓ Saved` confirmation span to `EditorToolbar`, placed between the aspect ratio select and the Save button. The span is always present in the DOM (preventing layout shift) and driven purely by the existing `saveState` prop: `opacity: 1` with an 80 ms fade-in when `saveState === "saved"`, and `opacity: 0` with a 600 ms fade-out for all other states, giving a natural visual pulse that trails off without a timer. `aria-live="polite"` ensures screen readers announce the confirmation. The Save button's existing label (`"Saving…"` / `"Saved"` / `"Save"` / `"Save failed — retry"`) and success-color treatment remain unchanged — the indicator is purely additive. No timing logic was duplicated; EditorShell's existing 2-second `saved → idle` transition drives the fade-out automatically. TypeScript typecheck clean; no backend or schema changes.
+
+**Next recommended task:** Add an empty-state illustration or call-to-action to the `PreviewPlayer` when no scene is selected — currently it renders a blank placeholder rectangle; a subtle prompt like "Select a scene to preview" or a minimal icon would reduce confusion for new users encountering the editor before any scenes are added.
+
+**Suggested title:** `Video Editor PreviewPlayer — empty-state prompt when no scene is selected`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor — Cmd/Ctrl+S Save Keyboard Shortcut ✅ SHIPPED
+
+---
+
+## Session Summary — Cmd/Ctrl+S Save Keyboard Shortcut (2026-03-24)
+
+Added a `Meta+S` / `Ctrl+S` keyboard shortcut to the Video Editor by registering a single `window` `keydown` listener inside a `useEffect` in `EditorShell`, placed after `handleSave` to respect declaration order and avoid temporal dead zone issues in the dependency array. The listener calls the existing `handleSave` directly — no new save path — and calls `e.preventDefault()` to suppress the browser's native Save Page dialog. It guards against two invalid trigger contexts: focus inside an `INPUT`, `TEXTAREA`, or `contenteditable` element (text editing in progress) and `saveState === "saving"` (request already in flight). The listener is cleaned up on unmount. `EditorToolbar.tsx` required no changes. TypeScript typecheck clean; no backend or schema changes.
+
+**Next recommended task:** Show a brief "Saved" confirmation toast or status pulse in `EditorToolbar` when a save completes — currently `saveState` cycles through `"saving"` → `"saved"` → `"idle"` but the transition back to idle happens silently after 2 s; a subtle inline indicator (e.g. a checkmark that fades out) would give the keyboard-save user tactile confirmation without a heavy toast system.
+
+**Suggested title:** `Video Editor toolbar — visible save confirmation indicator`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor SceneList — Scene Count and Total Duration Header ✅ SHIPPED
+
+---
+
+## Session Summary — SceneList Scene Count and Total Duration Header (2026-03-24)
+
+Replaced the bare scene count in the `SceneList` header with a compact "N scene(s) · Xs" summary derived live from the `scenes` prop — no new state, no persistence, no backend changes. Total duration is the sum of all `scene.duration` values, formatted by a small `formatDuration` helper that rounds to one decimal place and strips the decimal when the value is whole. The summary sits in the existing right-side `<span>` of the header's flex row, so no layout changes were needed. The display updates immediately on every scene mutation (add, remove, reorder, duration edit) because it reads directly from the current `scenes` array on each render. TypeScript typecheck clean.
+
+**Next recommended task:** Add a keyboard shortcut (e.g. `Cmd/Ctrl+S`) to trigger the Save action in the Video Editor so users can save without reaching for the toolbar button — wire `keydown` to `handleSave` in `EditorShell` or `EditorToolbar`, guarding against redundant saves while already saving.
+
+**Suggested title:** `Video Editor — keyboard shortcut for Save (Cmd+S)`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor — Scene Drag-to-Reorder in SceneList ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor Scene Drag-to-Reorder (2026-03-24)
+
+Added native HTML5 drag-to-reorder to `SceneList` without any external library. Each `SceneCard` root div is now `draggable`; drag state (`draggingIdx`, `hoverIdx`) lives in `SceneList` and is threaded into each card as `isDragging` and `isDropTarget` props. On drop, `SceneList` splices a shallow copy of `scenes` and calls `onReorder(newScenes)`, a new `useCallback` in `EditorShell` that calls `setScenes(newScenes)` + `setIsDirty(true)` — consistent with every other scene mutation. Visual feedback is minimal and consistent: the dragging card drops to 0.5 opacity, the drop-target card shows the existing accent border colour, and both transitions use the same 120 ms / 80 ms values already present on nearby elements. `<img>` and `<video>` thumbnails inside each card get `draggable={false}` + `pointerEvents: none` to suppress browser media-drag interference. The up/down arrow buttons, duration edit, remove, and selection all remain fully intact. TypeScript typecheck clean; no backend or schema changes.
+
+**Next recommended task:** Add a scene count and total-duration summary to the `SceneList` header — display "N scenes · Xs" (summing `scene.duration` across all scenes) so users can see the project length at a glance without opening a separate inspector.
+
+**Suggested title:** `Video Editor SceneList — scene count and total duration in header`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor Dashboard — First-Scene Thumbnail Preview ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor Dashboard First-Scene Thumbnail Preview (2026-03-24)
+
+Added a 96 px tall first-scene thumbnail to each project card in `EditorProjectsList`, rendered above the name row. A local `SceneThumbnail` function component reads `project.scenes[0]`: image scenes load via the existing `/api/artifacts?path=…` URL pattern (consistent with `PreviewPlayer` and `SceneList`) with `objectFit: cover` and an `onError` fallback; video scenes and empty/broken states render a fixed-height placeholder with a muted glyph icon (▶ for video, ▭ for empty). `pointerEvents: none` on the `<img>` keeps card navigation and rename/delete interactions fully intact. A single `THUMB_STYLE` constant prevents duplicate style objects across the image and placeholder paths. All cards have the same 96 px height regardless of media state, so the grid never jumps. The local `artifactUrl(path)` helper mirrors the pattern already used in `PreviewPlayer.tsx` and `SceneList.tsx`. No backend changes; no new routes; TypeScript typecheck clean.
+
+**Next recommended task:** Add scene reordering to the Video Editor — allow users to drag scenes up and down in the `SceneList` panel, committing the new order by calling `PATCH /api/editor-projects/[id]` with the reordered `scenes` array, so users can rearrange their project without removing and re-adding scenes.
+
+**Suggested title:** `Video Editor — scene drag-to-reorder in SceneList`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor Dashboard — Delete Project Action ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor Dashboard Delete Project Action (2026-03-24)
+
+Added a minimal delete affordance to each project card in `EditorProjectsList` without changing the card layout or navigation behaviour. A "×" button sits at the right end of the name row (`flexShrink: 0`, `opacity: 0.35` at rest, `opacity: 1` + error-red on hover, disabled while in-flight), implemented with `onMouseEnter`/`onMouseLeave` state to drive inline style transitions. The click handler calls `e.preventDefault()` + `e.stopPropagation()` to block `<Link>` navigation, guards against duplicate submissions with a `deleting` flag, requires `window.confirm` before proceeding, then calls `DELETE /api/editor-projects/[id]`. On success it fires an `onDelete(id)` callback passed down from `page.tsx`, which filters the project from local list state — no refetch needed. On failure it sets `deleteError` state, which surfaces as "delete failed" in the timestamp slot (same error-color border used by rename errors) and clears on the next attempt. `page.tsx` gained a `handleDeleted` function and passes `onDelete={handleDeleted}` to `EditorProjectsList`. TypeScript typecheck clean; no backend changes.
+
+**Next recommended task:** Add a scene thumbnail preview to each project card on the `/editor` dashboard — render the first scene's artifact as a small image thumbnail above the card metadata row, giving users a visual at-a-glance identifier for each project without opening it.
+
+**Suggested title:** `Video Editor dashboard — project card scene thumbnail preview`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor Dashboard Inline Project Rename ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor Dashboard Inline Project Rename (2026-03-24)
+
+Added inline rename to each project card in `EditorProjectsList` without restructuring the existing Link/card layout — clicking the project name enters edit mode via `e.preventDefault()` + `e.stopPropagation()` so the `<Link>` wrapper does not navigate, while clicking anywhere else on the card still opens the project. The name renders as a `<button type="button">` with `cursor: text` in view mode; edit mode replaces it with a focused `<input>` that commits on blur/Enter, reverts on Escape, and blocks propagation on click. The PATCH is scoped to the card (`/api/editor-projects/[id]` with `{ name }`), and on success calls an `onRename(id, name)` callback passed down from `page.tsx`, which maps over local state — no refetch needed. Save errors surface inline in the updated-time slot as "rename failed" with an error-color border, then revert the input to the original name. TypeScript typecheck clean; no backend changes.
+
+**Next recommended task:** Add a project delete action to the `/editor` dashboard — a small "×" or "Delete" button on each project card that calls `DELETE /api/editor-projects/[id]` and removes the project from local list state on success, with a simple confirmation (e.g. `window.confirm`) to prevent accidental deletion.
+
+**Suggested title:** `Video Editor dashboard — delete project action`
+
+---
+
+Date: 2026-03-24
+Session: Aspect Ratio Selection in Send to Video Editor Flow ✅ SHIPPED
+
+---
+
+## Session Summary — Aspect Ratio Selection in Send to Video Editor Flow (2026-03-24)
+
+Removed the hardcoded `"16:9"` from the "Send to Video Editor" handler and replaced it with a `sendAspectRatio` state variable (default `"16:9"`, type `"16:9" | "9:16" | "1:1"`). A compact inline `<select>` listing all three aspect ratio options sits directly to the left of the "Send to Video Editor" button inside the same `{previewArtifacts.length > 0 && (...)}` conditional; both elements share a `display: flex, gap: 4` wrapper so they appear as a single visual unit in the action row. The select disables while sending and resets to 16:9 naturally on page navigation (component state lifecycle). No shared constants file was needed — the three option values and labels are defined inline, consistent with how `NewEditorProjectCard` and `EditorToolbar` handle them locally. TypeScript typecheck clean; no backend changes.
+
+**Next recommended task:** Add a project rename action to the `/editor` dashboard so users can rename existing projects without opening them — an inline edit on each project card (similar to the inline name edit in `EditorToolbar`) that PATCHes `/api/editor-projects/[id]` with the new name and updates the local list state on success.
+
+**Suggested title:** `Video Editor dashboard — inline project rename`
+
+---
+
+Date: 2026-03-24
+Session: Send to Video Editor from Workflow Run Outputs ✅ SHIPPED
+
+---
+
+## Session Summary — Send to Video Editor from Workflow Run Outputs (2026-03-24)
+
+Added a "Send to Video Editor" action to the run detail page (`/workflows/[id]/history/[runId]`) that bridges the workflow canvas and the Video Editor in one click. The button appears in the existing run actions bar whenever the run has artifacts, is hidden when the run produces no artifacts, and is disabled (not hidden) when the user has explicitly deselected all artifacts — matching the same convention used by "Export Bundle". The handler reads the effective artifact selection (`selectedPaths === null` means all are included), maps each `PreviewArtifact` to a `Scene` (video: 10 s, image: 5 s; type derived from `mimeType`), then POSTs to `POST /api/editor-projects` with `name: "Run <id[:8]>"` and `aspectRatio: "16:9"`, and navigates to the new project on success. The `sendingToEditor` flag prevents duplicate submissions and shows "Sending…" while in-flight. The fix for `mimeType` being optional on `ArtifactPreviewable` was handled with `?.startsWith` and a local `isVideo` boolean. TypeScript typecheck clean; no backend changes.
+
+**Next recommended task:** Let users control the aspect ratio when sending to the Video Editor — currently it always defaults to 16:9. A lightweight approach: after the POST resolves and before navigating, detect whether any video artifact has a known portrait aspect (e.g. by checking filenames or output metadata for "9:16") and pass the correct `aspectRatio`; or more simply, add a small inline aspect ratio picker in the run actions area that is only visible when the user is about to send to the editor.
+
+**Suggested title:** `Video Editor — aspect ratio selection in Send to Video Editor flow`
+
+---
+
+Date: 2026-03-24
+Session: Sidebar Navigation Link for Video Projects ✅ SHIPPED
+
+---
+
+## Session Summary — Sidebar Navigation Link for Video Projects (2026-03-24)
+
+Added "Video Projects" as a first-class sidebar nav entry in `AppShell.tsx`, positioned after "Workflows" — the single source of truth for app navigation. The entry points to `/editor` and follows every existing sidebar convention: it uses an inline SVG icon (`VideoProjectsIcon`, a film-strip frame with a filled play triangle), participates in the same active-state logic (`pathname.startsWith("/editor")`), collapses to icon-only when the sidebar is collapsed, and requires no new state or navigation system. The label "Video Projects" was chosen to match the dashboard heading and the `EditorProjectsList` surface consistently, avoiding the ambiguous "Editor" or "Video Editor" alternatives. TypeScript typecheck clean; no backend or routing changes.
+
+**Next recommended task:** Add a "Send to Video Editor" action to the workflow run outputs panel so users can create a new editor project pre-populated with artifacts from a completed run — bridging the workflow canvas and the Video Editor without manual artifact picker drilling. This would POST to `/api/editor-projects` with scenes pre-filled from the run's output refs, then navigate to the new project.
+
+**Suggested title:** `Video Editor — Send to Editor action from workflow run outputs`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor Project Dashboard (List + Create Entry Surface) ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor Project Dashboard (List + Create Entry Surface) (2026-03-24)
+
+Built `/editor` as the entry surface for the Video Editor — a minimal dashboard page outside the `(app)` route group that lists existing editor projects and provides a create form, making the editor reachable without direct URL knowledge. `page.tsx` fetches `GET /api/editor-projects` on mount and renders `NewEditorProjectCard` above `EditorProjectsList`; a `handleCreated` callback prepends the new project to the local list so the UI updates immediately before the router redirects. `NewEditorProjectCard` owns the create form (name input, aspect ratio select, submit button) and calls `POST /api/editor-projects` then navigates to `/editor/[id]` on success; the button is disabled while creating or when name is empty. `EditorProjectsList` renders a responsive auto-fill grid of project cards — each a `<Link>` to `/editor/[id]` — showing name, aspect ratio badge, scene count, and a relative updated-at timestamp computed locally with a small `formatRelative` helper. TypeScript typecheck clean; no backend changes.
+
+**Next recommended task:** Add a "Video Projects" nav link to the `(app)` sidebar so users can discover the editor from inside the main app without navigating manually. This requires finding the sidebar nav component, adding an entry for `/editor` with a suitable icon (film/video), and confirming the link works across both the `(app)` and root route groups.
+
+**Suggested title:** `Video Editor sidebar nav link — surface /editor from the main app`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor Aspect Ratio Editing (Project-Level Control) ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor Aspect Ratio Editing (Project-Level Control) (2026-03-24)
+
+Made `project.aspectRatio` fully editable from the editor with no backend changes — `UpdateEditorProjectInput` already supported the field and the PATCH endpoint already accepted it, but the save body was not including it. `EditorShell` lifts `aspectRatio` into its own `useState` alongside `scenes` and `projectName`, and exposes a `handleAspectRatioChange` callback that sets the state and marks the project dirty. The read-only `<span>` badge in `EditorToolbar` was replaced with a plain `<select>` listing all three `AspectRatio` options (16:9 Landscape / 9:16 Portrait / 1:1 Square); it calls `onAspectRatioChange` on change and requires no extra state of its own. Both `PreviewPlayer` and `EditorToolbar` now receive the `aspectRatio` state variable rather than `project.aspectRatio`, so the preview container re-locks its aspect ratio immediately on selection. TypeScript typecheck clean; no backend or type changes.
+
+**Next recommended task:** Build the project list / dashboard view at `/editor` that lets users create new editor projects and navigate to existing ones — currently there is a working `/editor/[id]` surface but no entry-point UI. This would require a page that calls `GET /api/editor-projects` to list projects, a "New Project" form (name + aspect ratio), and `POST /api/editor-projects` to create one, then redirect to `/editor/[id]`.
+
+**Suggested title:** `Video Editor project dashboard — list and create editor projects`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor Scene Transition Picker (Minimal Scene Metadata Pass) ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor Scene Transition Picker (Minimal Scene Metadata Pass) (2026-03-24)
+
+Added a cut/fade transition toggle to `SceneInspector` using the `Scene.transition` field that was already typed and optional. `EditorShell` gained `handleSceneTransitionChange` — scoped to the selected scene by id, with the same `map`-then-`setIsDirty` pattern as all other scene mutations; selecting "cut" removes the `transition` field entirely (keeping it undefined, the implicit default) rather than storing a redundant value. `SceneInspector` renders the Transition toggle row using the existing `ToggleButton` component, placed between Duration and the Text Overlay divider; active state reads `scene.transition ?? "cut"` so the control always reflects the persisted value on scene switch. `SceneList` gained a "Fade" badge at bottom-left of each thumbnail (styled identically to the "T" overlay badge), shown only when `scene.transition === "fade"` — no badge appears for cut since cut is the default. TypeScript typecheck clean; no backend or type-shape changes.
+
+**Next recommended task:** Build a minimal project-level settings panel or modal that lets users change the project's `aspectRatio` after creation. Currently `aspectRatio` is set at project creation and locked — editing it would require wiring an `aspectRatio` update through `EditorShell` to the existing PATCH endpoint, and updating `PreviewPlayer`'s aspect-ratio container. This is the last major project-level metadata field not yet editable from the editor surface.
+
+**Suggested title:** `Video Editor aspect ratio editing — change project aspect ratio post-creation`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor Scene Duration Editing (Core Timing Control) ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor Scene Duration Editing (Core Timing Control) (2026-03-24)
+
+Added per-scene duration editing to `SceneInspector` using the `Scene.duration` field that was already typed and persisted. `SceneInspector` now accepts an `onDurationChange: (duration: number) => void` prop and renders a numeric input (min 1 s, step 0.1) at the top of its body, above the existing text overlay controls; local draft state is committed on blur or Enter, clamped to ≥ 1 s, and reset on scene switch via the existing `scene.id` effect. The inspector header was renamed from "Text Overlay" to "Scene" and a divider separates the new Timing section from the Text Overlay section below. `EditorShell` gained `handleSceneDurationChange`, scoped to the selected scene by id and following the exact same `map`-then-`setIsDirty` pattern as `handleOverlayChange`. The existing inline duration edit in `SceneList`'s card is preserved and unchanged. TypeScript typecheck clean; no backend or type-shape changes.
+
+**Next recommended task:** Add a scene transition picker to `SceneInspector` — a cut/fade two-option toggle that writes to `scene.transition`. The `transition` field already exists on the `Scene` type; it needs a UI row in `SceneInspector` (below the divider or as a third section), a `handleTransitionChange` callback in `EditorShell` scoped to the selected scene, and a visual indicator in `SceneList` (e.g. a small arrow or "F" badge) for scenes with a fade transition set.
+
+**Suggested title:** `Video Editor scene transition picker — cut vs fade per scene`
+
+---
+
+Date: 2026-03-24
+Session: Scene Overlay Indicator (Visual Feedback Pass) ✅ SHIPPED
+
+---
+
+## Session Summary — Scene Overlay Indicator (Visual Feedback Pass) (2026-03-24)
+
+Added a minimal "T" badge to the scene thumbnail in `SceneList` so users can immediately see which scenes have a text overlay without selecting each one. The badge renders at top-right of the thumbnail using `position: absolute`, reads directly from `scene.textOverlay?.text`, and is only present when that value is non-empty — no new props, no new state, no new components. To make room, the scene index number was moved from top-right to bottom-right of the thumbnail; no other layout was touched. The badge uses a semi-transparent dark background with low-opacity white text (`rgba(255,255,255,0.7)`) and `pointerEvents: none` so it never interferes with selection or reorder. TypeScript typecheck clean; no backend changes.
+
+**Next recommended task:** Add a scene transition picker to `SceneInspector` — a cut/fade two-option toggle that writes to `scene.transition`. The `transition` field already exists on the `Scene` type; it only needs a UI control in `SceneInspector` and a `handleTransitionChange` mutation in `EditorShell`, following the exact same pattern as `handleOverlayChange`.
+
+**Suggested title:** `Video Editor scene transition picker — cut vs fade per scene`
+
+---
+
+Date: 2026-03-24
+Session: Video Editor Text Overlay Editing (V1 Polish Layer) ✅ SHIPPED
+
+---
+
+## Session Summary — Video Editor Text Overlay Editing (V1 Polish Layer) (2026-03-24)
+
+Added per-scene text overlay editing and live preview to the Video Editor without touching the backend or persistence schema — `TextOverlay` was already modelled in `editorProjectTypes.ts` from day one. Created `SceneInspector`, a 220 px right panel that appears whenever a scene is selected, with a textarea for overlay text (committed on blur), three-button position toggles (top / center / bottom), three-button style toggles (subtitle / title / minimal), and a "Clear overlay" button that removes the overlay from the scene. Wired a `handleOverlayChange` callback into `EditorShell` that merges `TextOverlay | null` onto the selected scene, marks the project dirty, and propagates through the existing Save flow unchanged. Updated `PreviewPlayer` to render `scene.textOverlay` as an absolutely-positioned `<span>` inside the aspect-ratio container, with three CSS variant shapes: subtitle (semi-transparent dark pill, white text), title (large bold, text-shadow only), and minimal (small, no background). TypeScript typecheck clean throughout; no new systems introduced.
+
+**Next recommended task:** Add a scene transition picker to `SceneInspector` — a simple two-option toggle (cut / fade) that writes to `scene.transition`, so users can designate fade-in transitions between clips before export is wired. The `transition` field already exists on `Scene`; it only needs UI and a mutation path in `EditorShell`.
+
+**Suggested title:** `Video Editor scene transition picker — cut vs fade per scene`
+
+---
+
 Date: 2026-03-18
 Session: Video Editor UI Shell (Persistent Project Surface) ✅ SHIPPED
 

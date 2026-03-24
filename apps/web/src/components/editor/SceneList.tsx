@@ -2,14 +2,19 @@
 
 import { useState } from "react";
 import type { Scene } from "@/lib/editorProjectTypes";
+import { clampDurationS } from "@/lib/sceneTiming";
 
 interface SceneListProps {
   scenes: Scene[];
-  selectedId: string | null;
+  /** Single active-scene authority: follows playIndex while playing, selectedId while paused. */
+  activeId: string | null;
   onSelect: (id: string) => void;
   onMove: (idx: number, dir: "up" | "down") => void;
   onRemove: (idx: number) => void;
   onDurationChange: (idx: number, duration: number) => void;
+  onAddScene: () => void;
+  onReorder: (scenes: Scene[]) => void;
+  onVideoDurationDetected?: (idx: number, naturalSecs: number) => void;
 }
 
 function artifactUrl(path: string): string {
@@ -18,12 +23,32 @@ function artifactUrl(path: string): string {
 
 export function SceneList({
   scenes,
-  selectedId,
+  activeId,
   onSelect,
   onMove,
   onRemove,
   onDurationChange,
+  onAddScene,
+  onReorder,
+  onVideoDurationDetected,
 }: SceneListProps) {
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
+  function handleDrop(targetIdx: number) {
+    if (draggingIdx === null || draggingIdx === targetIdx) {
+      setDraggingIdx(null);
+      setHoverIdx(null);
+      return;
+    }
+    const next = [...scenes];
+    const [moved] = next.splice(draggingIdx, 1);
+    next.splice(targetIdx, 0, moved!);
+    onReorder(next);
+    setDraggingIdx(null);
+    setHoverIdx(null);
+  }
+
   return (
     <div
       style={{
@@ -51,7 +76,7 @@ export function SceneList({
           Scenes
         </span>
         <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-          {scenes.length}
+          {scenes.length} scene{scenes.length !== 1 ? "s" : ""} · {formatDuration(scenes.reduce((sum, s) => sum + s.duration, 0))}
         </span>
       </div>
 
@@ -68,12 +93,19 @@ export function SceneList({
               scene={scene}
               idx={idx}
               total={scenes.length}
-              isSelected={scene.id === selectedId}
+              isActive={scene.id === activeId}
+              isDragging={idx === draggingIdx}
+              isDropTarget={idx === hoverIdx && idx !== draggingIdx}
               onSelect={() => onSelect(scene.id)}
               onMoveUp={() => onMove(idx, "up")}
               onMoveDown={() => onMove(idx, "down")}
               onRemove={() => onRemove(idx)}
               onDurationChange={(d) => onDurationChange(idx, d)}
+              onVideoDurationDetected={onVideoDurationDetected ? (n) => onVideoDurationDetected(idx, n) : undefined}
+              onDragStart={() => setDraggingIdx(idx)}
+              onDragEnter={() => setHoverIdx(idx)}
+              onDrop={() => handleDrop(idx)}
+              onDragEnd={() => { setDraggingIdx(null); setHoverIdx(null); }}
             />
           ))
         )}
@@ -89,18 +121,26 @@ export function SceneList({
       >
         <button
           type="button"
-          disabled
-          title="Add scene — coming soon: pick from run artifacts"
+          onClick={onAddScene}
+          title="Add scene from workflow artifacts"
           style={{
             width: "100%",
             padding: "7px",
             fontSize: 12,
-            color: "var(--color-text-muted)",
+            color: "var(--color-text-secondary)",
             background: "none",
             border: "1px dashed var(--color-border)",
             borderRadius: 6,
-            cursor: "not-allowed",
+            cursor: "pointer",
             textAlign: "center",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "var(--color-accent)";
+            e.currentTarget.style.color = "var(--color-accent)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "var(--color-border)";
+            e.currentTarget.style.color = "var(--color-text-secondary)";
           }}
         >
           + Add Scene
@@ -116,24 +156,38 @@ interface SceneCardProps {
   scene: Scene;
   idx: number;
   total: number;
-  isSelected: boolean;
+  isActive: boolean;
+  isDragging: boolean;
+  isDropTarget: boolean;
   onSelect: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
   onDurationChange: (duration: number) => void;
+  onVideoDurationDetected?: (naturalSecs: number) => void;
+  onDragStart: () => void;
+  onDragEnter: () => void;
+  onDrop: () => void;
+  onDragEnd: () => void;
 }
 
 function SceneCard({
   scene,
   idx,
   total,
-  isSelected,
+  isActive,
+  isDragging,
+  isDropTarget,
   onSelect,
   onMoveUp,
   onMoveDown,
   onRemove,
   onDurationChange,
+  onVideoDurationDetected,
+  onDragStart,
+  onDragEnter,
+  onDrop,
+  onDragEnd,
 }: SceneCardProps) {
   const [editingDuration, setEditingDuration] = useState(false);
   const [durationInput, setDurationInput] = useState(String(scene.duration));
@@ -141,7 +195,7 @@ function SceneCard({
   function commitDuration() {
     const val = parseFloat(durationInput);
     if (!isNaN(val) && val > 0) {
-      onDurationChange(Math.round(val * 10) / 10);
+      onDurationChange(clampDurationS(val));
     } else {
       setDurationInput(String(scene.duration));
     }
@@ -154,15 +208,22 @@ function SceneCard({
     <div
       role="button"
       tabIndex={0}
+      draggable
       onClick={onSelect}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); }}}
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart(); }}
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; onDragEnter(); }}
+      onDrop={(e) => { e.preventDefault(); onDrop(); }}
+      onDragEnd={onDragEnd}
       style={{
         borderRadius: 6,
-        border: `1px solid ${isSelected ? "var(--color-accent)" : "var(--color-border)"}`,
-        backgroundColor: isSelected ? "rgba(59,130,246,0.06)" : "var(--color-surface)",
-        cursor: "pointer",
+        border: `1px solid ${isActive || isDropTarget ? "var(--color-accent)" : "var(--color-border)"}`,
+        backgroundColor: isActive ? "rgba(59,130,246,0.06)" : "var(--color-surface)",
+        cursor: "grab",
         overflow: "hidden",
         userSelect: "none",
+        opacity: isDragging ? 0.5 : 1,
+        transition: "opacity 120ms, border-color 80ms, box-shadow 80ms",
       }}
     >
       {/* Thumbnail */}
@@ -180,14 +241,21 @@ function SceneCard({
             muted
             playsInline
             preload="metadata"
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            draggable={false}
+            onLoadedMetadata={(e) => {
+              if (scene.naturalDuration === undefined && e.currentTarget.duration > 0) {
+                onVideoDurationDetected?.(e.currentTarget.duration);
+              }
+            }}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" }}
           />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={src}
             alt={`Scene ${idx + 1}`}
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            draggable={false}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" }}
           />
         )}
 
@@ -214,7 +282,7 @@ function SceneCard({
         <span
           style={{
             position: "absolute",
-            top: 4,
+            bottom: 3,
             right: 4,
             fontSize: 9,
             color: "rgba(255,255,255,0.6)",
@@ -223,6 +291,50 @@ function SceneCard({
         >
           {idx + 1}
         </span>
+
+        {/* Fade transition indicator */}
+        {scene.transition === "fade" && (
+          <span
+            style={{
+              position: "absolute",
+              bottom: 3,
+              left: 4,
+              fontSize: 8,
+              fontWeight: 700,
+              lineHeight: 1,
+              padding: "2px 4px",
+              borderRadius: 3,
+              backgroundColor: "rgba(0,0,0,0.55)",
+              color: "rgba(255,255,255,0.7)",
+              letterSpacing: "0.02em",
+              pointerEvents: "none",
+            }}
+          >
+            Fade
+          </span>
+        )}
+
+        {/* Overlay indicator */}
+        {scene.textOverlay?.text && (
+          <span
+            style={{
+              position: "absolute",
+              top: 4,
+              right: 4,
+              fontSize: 8,
+              fontWeight: 700,
+              lineHeight: 1,
+              padding: "2px 4px",
+              borderRadius: 3,
+              backgroundColor: "rgba(0,0,0,0.55)",
+              color: "rgba(255,255,255,0.7)",
+              letterSpacing: "0.02em",
+              pointerEvents: "none",
+            }}
+          >
+            T
+          </span>
+        )}
       </div>
 
       {/* Controls row */}
@@ -377,4 +489,12 @@ function IconButton({
       {children}
     </button>
   );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatDuration(seconds: number): string {
+  if (seconds === 0) return "0s";
+  const rounded = Math.round(seconds * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded}s` : `${rounded}s`;
 }

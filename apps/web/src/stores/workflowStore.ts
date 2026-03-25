@@ -7,6 +7,10 @@ import type {
   WorkflowGraph,
 } from "@aistudio/shared";
 import type { RunDebugSnapshot } from "@aistudio/engine";
+import type { NodeLatestOutput } from "@/lib/runOutputs";
+import { computeStaleFromNode } from "@/lib/staleness";
+import type { NormalizedNodeRunState } from "@/lib/nodeRunState";
+import type { NodeExecutionSummary } from "@/lib/nodeExecutionSummary";
 import {
   type Node,
   type Edge,
@@ -70,6 +74,14 @@ interface WorkflowMeta {
   id: string;
   name: string;
   description: string;
+  lastRunStatus: string | null;
+  lastRunAt: string | null;
+  revisionCount: number;
+}
+
+interface HistorySnapshot {
+  nodes: Node[];
+  edges: Edge[];
 }
 
 interface WorkflowState {
@@ -80,6 +92,10 @@ interface WorkflowState {
   nodes: Node[];
   edges: Edge[];
 
+  // Undo/redo history
+  historyStack: HistorySnapshot[];
+  redoStack: HistorySnapshot[];
+
   // UI state
   selectedNodeId: string | null;
   paletteOpen: boolean;
@@ -89,9 +105,31 @@ interface WorkflowState {
   saveAsTemplateOpen: boolean;
   debugSnapshot: RunDebugSnapshot | null;
   currentRunId: string | null;
+  /** Non-null when the canvas was loaded via Edit & Replay from a historical run. */
+  replayRunId: string | null;
   dirty: boolean;
   saving: boolean;
   isRunning: boolean;
+  /** Incremented each time updateNodeParam fires — canvas watches this to debounce Auto-Run. */
+  paramEditSeq: number;
+  /** When true, meaningful param edits schedule a debounced rerun. Session-only; no DB persistence. */
+  autoRunEnabled: boolean;
+  /** Latest output per node from the most recent completed run. Populated after runs and on load. */
+  latestOutputsByNode: Record<string, NodeLatestOutput> | null;
+  /** Session-only: nodes whose params/graph may have changed since their last successful run. */
+  staleNodeIds: Record<string, true>;
+  /** Session-only: last known normalized run state per node — persists across run restarts. */
+  nodeRunStatesById: Record<string, NormalizedNodeRunState>;
+  /** Session-only: latest normalized execution summary per node from the most recent run. */
+  latestExecutionByNodeId: Record<string, NodeExecutionSummary>;
+
+  // ── Auto-Run queue flags (session-only, no persistence) ──
+  /** Debounce timer is ticking — a run will be requested soon. */
+  autoRunPending: boolean;
+  /** A run is in-flight; one follow-up run is waiting to fire after it completes. */
+  autoRunQueued: boolean;
+  /** An auto-triggered run is currently executing. */
+  autoRunInFlight: boolean;
 
   // React Flow callbacks
   onNodesChange: OnNodesChange;
@@ -99,8 +137,13 @@ interface WorkflowState {
   onConnect: (connection: Connection) => void;
 
   // Actions
-  loadWorkflow: (meta: WorkflowMeta, graph: WorkflowGraph) => void;
+  loadWorkflow: (meta: WorkflowMeta, graph: WorkflowGraph, replayRunId?: string | null) => void;
+  setReplayRunId: (id: string | null) => void;
   addNode: (node: WorkflowNode) => void;
+  duplicateNode: (nodeId: string) => void;
+  /** Batch-insert multiple nodes + edges as a single undo step. */
+  insertNodes: (nodes: WorkflowNode[], edges: WorkflowEdge[]) => void;
+  insertFragment: (graph: WorkflowGraph, offsetX?: number, offsetY?: number) => void;
   removeNode: (nodeId: string) => void;
   selectNode: (nodeId: string | null) => void;
   updateNodeParam: (nodeId: string, key: string, value: unknown) => void;
@@ -113,8 +156,23 @@ interface WorkflowState {
   setCurrentRunId: (runId: string | null) => void;
   saveGraph: () => Promise<void>;
   runWorkflow: () => Promise<void>;
+  setAutoRunEnabled: (enabled: boolean) => void;
+  setLatestOutputsByNode: (map: Record<string, NodeLatestOutput>) => void;
+  markNodeAndDownstreamStale: (nodeId: string) => void;
+  clearStaleNodes: (nodeIds?: string[]) => void;
+  setNodeRunStates: (map: Record<string, NormalizedNodeRunState>) => void;
+  clearNodeRunStates: () => void;
+  setLatestExecutionByNode: (map: Record<string, NodeExecutionSummary>) => void;
+  clearLatestExecutionByNode: () => void;
+  setAutoRunPending: (flag: boolean) => void;
+  setAutoRunQueued: (flag: boolean) => void;
+  setAutoRunInFlight: (flag: boolean) => void;
   updateMetaName: (name: string) => void;
+  updateMetaRunStatus: (status: string, runAt: string) => void;
   getWorkflowGraph: () => WorkflowGraph;
+  pushHistory: () => void;
+  undo: () => void;
+  redo: () => void;
 }
 
 // ── Store ──
@@ -123,6 +181,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   meta: null,
   nodes: [],
   edges: [],
+  historyStack: [],
+  redoStack: [],
   selectedNodeId: null,
   paletteOpen: true,
   inspectorOpen: false,
@@ -131,11 +191,63 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   saveAsTemplateOpen: false,
   debugSnapshot: null,
   currentRunId: null,
+  replayRunId: null,
   dirty: false,
   saving: false,
   isRunning: false,
+  paramEditSeq: 0,
+  autoRunEnabled: false,
+  latestOutputsByNode: null,
+  staleNodeIds: {},
+  nodeRunStatesById: {},
+  latestExecutionByNodeId: {},
+  autoRunPending: false,
+  autoRunQueued: false,
+  autoRunInFlight: false,
+
+  pushHistory: () => {
+    const { nodes, edges, historyStack } = get();
+    const snapshot: HistorySnapshot = { nodes, edges };
+    const next = historyStack.length >= 50
+      ? [...historyStack.slice(1), snapshot]
+      : [...historyStack, snapshot];
+    set({ historyStack: next, redoStack: [] });
+  },
+
+  undo: () => {
+    const { nodes, edges, historyStack, redoStack } = get();
+    if (historyStack.length === 0) return;
+    const snapshot = historyStack[historyStack.length - 1];
+    const redoSnapshot: HistorySnapshot = { nodes, edges };
+    set({
+      nodes: snapshot.nodes,
+      edges: snapshot.edges,
+      historyStack: historyStack.slice(0, -1),
+      redoStack: [...redoStack, redoSnapshot],
+      selectedNodeId: null,
+      dirty: true,
+    });
+  },
+
+  redo: () => {
+    const { nodes, edges, historyStack, redoStack } = get();
+    if (redoStack.length === 0) return;
+    const snapshot = redoStack[redoStack.length - 1];
+    const undoSnapshot: HistorySnapshot = { nodes, edges };
+    set({
+      nodes: snapshot.nodes,
+      edges: snapshot.edges,
+      historyStack: [...historyStack, undoSnapshot],
+      redoStack: redoStack.slice(0, -1),
+      selectedNodeId: null,
+      dirty: true,
+    });
+  },
 
   onNodesChange: (changes) => {
+    if (changes.some((c) => c.type === "remove")) {
+      get().pushHistory();
+    }
     set((s) => ({
       nodes: applyNodeChanges(changes, s.nodes),
       dirty: true,
@@ -143,13 +255,25 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
 
   onEdgesChange: (changes) => {
+    // Capture removed edge targets *before* applying changes so we can still look them up.
+    const removedTargets = changes
+      .filter((c): c is { type: "remove"; id: string } => c.type === "remove")
+      .map((c) => get().edges.find((e) => e.id === c.id)?.target ?? null)
+      .filter((t): t is string => t !== null);
+    if (changes.some((c) => c.type === "remove")) {
+      get().pushHistory();
+    }
     set((s) => ({
       edges: applyEdgeChanges(changes, s.edges),
       dirty: true,
     }));
+    for (const target of removedTargets) {
+      get().markNodeAndDownstreamStale(target);
+    }
   },
 
   onConnect: (connection) => {
+    get().pushHistory();
     set((s) => ({
       edges: addEdge(
         { ...connection, id: crypto.randomUUID(), type: "default" },
@@ -157,26 +281,113 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       ),
       dirty: true,
     }));
+    if (connection.target) {
+      get().markNodeAndDownstreamStale(connection.target);
+    }
   },
 
-  loadWorkflow: (meta, graph) => {
+  loadWorkflow: (meta, graph, replayRunId = null) => {
     set({
       meta,
       nodes: graph.nodes.map(toFlowNode),
       edges: graph.edges.map(toFlowEdge),
       selectedNodeId: null,
+      replayRunId: replayRunId ?? null,
       dirty: false,
+      historyStack: [],
+      redoStack: [],
+      latestOutputsByNode: null,
+      staleNodeIds: {},
+      nodeRunStatesById: {},
+      latestExecutionByNodeId: {},
+      autoRunPending: false,
+      autoRunQueued: false,
+      autoRunInFlight: false,
     });
   },
 
   addNode: (node) => {
+    get().pushHistory();
     set((s) => ({
       nodes: [...s.nodes, toFlowNode(node)],
       dirty: true,
     }));
   },
 
+  duplicateNode: (nodeId) => {
+    const state = get();
+    const node = state.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    state.pushHistory();
+    const newId = crypto.randomUUID();
+    const clone = {
+      ...node,
+      id: newId,
+      position: { x: node.position.x + 40, y: node.position.y + 40 },
+      selected: false,
+    };
+    set((s) => ({
+      nodes: [...s.nodes, clone],
+      selectedNodeId: newId,
+      inspectorOpen: true,
+      dirty: true,
+    }));
+  },
+
+  insertNodes: (nodes, edges) => {
+    get().pushHistory();
+    const flowEdges = edges.map((we) => ({
+      id: we.id,
+      source: we.source,
+      sourceHandle: we.sourceHandle,
+      target: we.target,
+      targetHandle: we.targetHandle,
+      type: "default" as const,
+      animated: true,
+    }));
+    set((s) => ({
+      nodes: [...s.nodes, ...nodes.map(toFlowNode)],
+      edges: [...s.edges, ...flowEdges],
+      selectedNodeId: nodes[0]?.id ?? null,
+      inspectorOpen: nodes.length > 0,
+      dirty: true,
+    }));
+    // Mark target nodes stale for any newly-created connecting edges.
+    for (const edge of edges) {
+      get().markNodeAndDownstreamStale(edge.target);
+    }
+  },
+
+  insertFragment: (graph, offsetX = 100, offsetY = 100) => {
+    get().pushHistory();
+    // Remap node IDs to avoid collisions with existing canvas nodes.
+    const idMap = new Map<string, string>();
+    const newNodes = graph.nodes.map((wn, i) => {
+      const newId = `${wn.id}-${Date.now()}-${i}`;
+      idMap.set(wn.id, newId);
+      return toFlowNode({
+        ...wn,
+        id: newId,
+        position: { x: (wn.position?.x ?? 0) + offsetX, y: (wn.position?.y ?? 0) + offsetY },
+      });
+    });
+    const newEdges: Edge[] = graph.edges.map((we) => ({
+      id: `${we.id}-${Date.now()}`,
+      source: idMap.get(we.source) ?? we.source,
+      sourceHandle: we.sourceHandle,
+      target: idMap.get(we.target) ?? we.target,
+      targetHandle: we.targetHandle,
+      type: "default" as const,
+    }));
+    set((s) => ({
+      nodes: [...s.nodes, ...newNodes],
+      edges: [...s.edges, ...newEdges],
+      dirty: true,
+    }));
+  },
+
   removeNode: (nodeId) => {
+    get().pushHistory();
     set((s) => ({
       nodes: s.nodes.filter((n) => n.id !== nodeId),
       edges: s.edges.filter(
@@ -195,6 +406,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
 
   updateNodeParam: (nodeId, key, value) => {
+    get().pushHistory();
     set((s) => ({
       nodes: s.nodes.map((n) => {
         if (n.id !== nodeId) return n;
@@ -202,7 +414,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         return { ...n, data: { ...n.data, params } };
       }),
       dirty: true,
+      paramEditSeq: s.paramEditSeq + 1,
     }));
+    get().markNodeAndDownstreamStale(nodeId);
   },
 
   togglePalette: () => set((s) => ({ paletteOpen: !s.paletteOpen })),
@@ -212,6 +426,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   toggleSaveAsTemplate: () => set((s) => ({ saveAsTemplateOpen: !s.saveAsTemplateOpen })),
   setDebugSnapshot: (snapshot) => set({ debugSnapshot: snapshot }),
   setCurrentRunId: (runId) => set({ currentRunId: runId }),
+  setReplayRunId: (id) => set({ replayRunId: id }),
 
   getWorkflowGraph: () => {
     const { nodes, edges } = get();
@@ -248,9 +463,41 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     }
   },
 
+  setAutoRunEnabled: (enabled) => set({ autoRunEnabled: enabled }),
+  setLatestOutputsByNode: (map) => set({ latestOutputsByNode: map }),
+
+  markNodeAndDownstreamStale: (nodeId) => {
+    const { nodes, edges, staleNodeIds } = get();
+    set({ staleNodeIds: computeStaleFromNode(nodeId, nodes, edges, staleNodeIds) });
+  },
+
+  clearStaleNodes: (nodeIds) => {
+    if (!nodeIds) {
+      set({ staleNodeIds: {} });
+      return;
+    }
+    const next = { ...get().staleNodeIds };
+    for (const id of nodeIds) delete next[id];
+    set({ staleNodeIds: next });
+  },
+
+  setNodeRunStates: (map) => set({ nodeRunStatesById: map }),
+  clearNodeRunStates: () => set({ nodeRunStatesById: {} }),
+  setLatestExecutionByNode: (map) => set({ latestExecutionByNodeId: map }),
+  clearLatestExecutionByNode: () => set({ latestExecutionByNodeId: {} }),
+  setAutoRunPending: (flag) => set({ autoRunPending: flag }),
+  setAutoRunQueued: (flag) => set({ autoRunQueued: flag }),
+  setAutoRunInFlight: (flag) => set({ autoRunInFlight: flag }),
+
   updateMetaName: (name) => {
     set((s) => ({
       meta: s.meta ? { ...s.meta, name } : s.meta,
+    }));
+  },
+
+  updateMetaRunStatus: (status, runAt) => {
+    set((s) => ({
+      meta: s.meta ? { ...s.meta, lastRunStatus: status, lastRunAt: runAt } : s.meta,
     }));
   },
 
@@ -272,9 +519,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       if (!res.ok) throw new Error(`Failed to start run: ${res.status}`);
       const { id: runId } = (await res.json()) as { id: string };
 
-      // Clear stale snapshot immediately so the debugger doesn't flash the
-      // previous run's state while the SSE connection is being established.
-      set({ currentRunId: runId, debuggerOpen: true, debugSnapshot: null });
+      // Clear stale snapshot and persisted node-state badges immediately so the
+      // debugger and canvas don't flash previous-run state while the SSE
+      // connection is being established.
+      set({ currentRunId: runId, debuggerOpen: true, debugSnapshot: null, replayRunId: null, nodeRunStatesById: {} });
     } catch (err) {
       console.error("[runWorkflow]", err);
     } finally {

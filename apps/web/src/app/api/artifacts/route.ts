@@ -27,6 +27,7 @@ const MIME_BY_EXT: Record<string, string> = {
   ".jpg":  "image/jpeg",
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
+  ".mp4":  "video/mp4",
 };
 
 export async function GET(req: Request) {

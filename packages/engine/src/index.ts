@@ -48,13 +48,19 @@ export {
   executeExportBundle,
   MockGeneratorAdapter,
   FalGeneratorAdapter,
+  ReplicateGeneratorAdapter,
+  FalVideoGeneratorAdapter,
   createGenerator,
+  createVideoGenerator,
+  isFalVideoModelId,
 } from "./capabilities/index.js";
 export type {
   GeneratorAdapter,
+  VideoGeneratorAdapter,
   GeneratorAdapterOptions,
   GenerateOpts,
   GeneratedImage,
+  GeneratedVideo,
 } from "./capabilities/index.js";
 
 // ── Local Executors ──

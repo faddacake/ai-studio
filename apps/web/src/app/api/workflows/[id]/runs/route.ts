@@ -19,6 +19,8 @@ import {
   registerCapabilityExecutors,
   registerLocalExecutors,
   createGenerator,
+  createVideoGenerator,
+  isFalVideoModelId,
   writeArtifact,
   type DispatchJob,
 } from "@aistudio/engine";
@@ -53,11 +55,13 @@ function ensureEngineBootstrapped(): void {
       const providerId = context.providerId ?? definition.provider?.providerId ?? "fal";
       const modelId = context.modelId ?? definition.provider?.modelId;
 
-      // __apiKey is injected in makeDispatch() after DB lookup; fall back to env.
-      // If neither is present the provider is not configured — fail clearly.
+      // __apiKey is injected in makeDispatch() after DB lookup; fall back to the
+      // provider-specific env var.  If neither is present the provider is not
+      // configured — fail clearly.
+      const envKey =
+        providerId === "replicate" ? process.env.REPLICATE_API_TOKEN : process.env.FAL_API_KEY;
       const apiKey =
-        (context.params.__apiKey as string | undefined) ??
-        process.env.FAL_API_KEY;
+        (context.params.__apiKey as string | undefined) ?? envKey;
 
       if (!apiKey) {
         throw new Error(
@@ -66,36 +70,58 @@ function ensureEngineBootstrapped(): void {
         );
       }
 
-      const generator = createGenerator({ provider: providerId, apiKey, modelId });
-
       const prompt =
         (context.inputs.prompt_in as string | undefined) ??
         (context.params.prompt as string | undefined) ??
         "abstract art";
-      const width = Number(context.params.width ?? 1024);
-      const height = Number(context.params.height ?? 1024);
+      const width    = Number(context.params.width  ?? 1024);
+      const height   = Number(context.params.height ?? 1024);
+      const duration = Number(context.params.duration ?? 5);
       const seed =
         context.params.seed !== undefined && Number(context.params.seed) !== -1
           ? Number(context.params.seed)
           : undefined;
 
+      // Route to the video path for known video model IDs; image path for everything else.
+      if (providerId === "fal" && modelId && isFalVideoModelId(modelId)) {
+        const videoGen  = createVideoGenerator({ provider: providerId, apiKey, modelId });
+        const generated = await videoGen.generateVideo({ prompt, width, height, duration, signal: context.signal });
+
+        const artifactRef = await writeArtifact({
+          buffer:    generated.buffer,
+          outputDir: context.outputDir ?? ARTIFACTS_DIR,
+          runId:     context.runId,
+          nodeId:    context.nodeId,
+          suffix:    "generated",
+          format:    "mp4",
+        });
+
+        return {
+          outputs:  { video_out: artifactRef },
+          cost:     0,
+          metadata: { provider: providerId, model: modelId, generatorKind: videoGen.kind, durationSecs: generated.durationSecs },
+        };
+      }
+
+      // Image path (FLUX, SDXL, etc.)
+      const generator = createGenerator({ provider: providerId, apiKey, modelId });
       const generated = await generator.generate({ prompt, width, height, seed, signal: context.signal });
 
       const format = generated.mimeType.replace(/^image\//, "") === "jpeg" ? "jpeg" : "png";
       const artifactRef = await writeArtifact({
-        buffer: generated.buffer,
+        buffer:    generated.buffer,
         outputDir: context.outputDir ?? ARTIFACTS_DIR,
-        runId: context.runId,
-        nodeId: context.nodeId,
-        suffix: "generated",
+        runId:     context.runId,
+        nodeId:    context.nodeId,
+        suffix:    "generated",
         format,
-        width: generated.width,
-        height: generated.height,
+        width:     generated.width,
+        height:    generated.height,
       });
 
       return {
-        outputs: { image_out: artifactRef },
-        cost: 0,
+        outputs:  { image_out: artifactRef },
+        cost:     0,
         metadata: { provider: providerId, model: modelId, generatorKind: generator.kind },
       };
     });
@@ -223,9 +249,46 @@ function makeDispatch(runId: string, outputDir: string): DispatchJob {
 
 // ── Route handlers ────────────────────────────────────────────────────────────
 
+// ── Graph stats helper ────────────────────────────────────────────────────────
+
+interface ProvenanceLink {
+  sourceRunId: string;
+  artifactPath: string;
+}
+
+interface GraphStats {
+  nodeCount: number;
+  edgeCount: number;
+  provenanceNodeCount: number;
+  nodeTypes: string[];
+  provenanceLinks: ProvenanceLink[];
+}
+
+function parseGraphStats(snapshot: string | null): GraphStats {
+  const fallback: GraphStats = { nodeCount: 0, edgeCount: 0, provenanceNodeCount: 0, nodeTypes: [], provenanceLinks: [] };
+  if (!snapshot) return fallback;
+  try {
+    const g: { nodes?: Array<{ type?: string; data?: { params?: Record<string, unknown> } }>; edges?: unknown[] } = JSON.parse(snapshot);
+    const nodes = g.nodes ?? [];
+    const provenanceLinks: ProvenanceLink[] = nodes
+      .map((n) => n.data?.params?.__provenance)
+      .filter((p): p is { runId: string; artifactPath: string } =>
+        p != null && typeof p === "object" && typeof (p as Record<string, unknown>).runId === "string",
+      )
+      .map((p) => ({ sourceRunId: p.runId, artifactPath: p.artifactPath }));
+    return {
+      nodeCount: nodes.length,
+      edgeCount: (g.edges ?? []).length,
+      provenanceNodeCount: provenanceLinks.length,
+      nodeTypes: [...new Set(nodes.map((n) => n.type ?? "unknown").filter(Boolean))],
+      provenanceLinks,
+    };
+  } catch { return fallback; }
+}
+
 /**
  * GET /api/workflows/:id/runs — list historical run records, newest first.
- * Excludes graphSnapshot (large) — returns summary fields only.
+ * Returns summary fields plus lightweight graphStats derived from graphSnapshot.
  */
 export async function GET(
   _request: NextRequest,
@@ -253,16 +316,23 @@ export async function GET(
       workflowId: schema.runs.workflowId,
       status: schema.runs.status,
       totalCost: schema.runs.totalCost,
+      error: schema.runs.error,
       startedAt: schema.runs.startedAt,
       completedAt: schema.runs.completedAt,
       createdAt: schema.runs.createdAt,
+      graphSnapshot: schema.runs.graphSnapshot,
     })
     .from(schema.runs)
     .where(eq(schema.runs.workflowId, workflowId))
     .orderBy(desc(schema.runs.createdAt))
     .all();
 
-  return NextResponse.json(rows);
+  const response = rows.map(({ graphSnapshot, ...row }) => ({
+    ...row,
+    graphStats: parseGraphStats(graphSnapshot),
+  }));
+
+  return NextResponse.json(response);
 }
 
 export async function POST(
@@ -340,11 +410,21 @@ export async function POST(
 
       const db2 = getDb();
 
+      // Collect error summary from the first failed node (if any)
+      let lastRunError: string | null = null;
+      for (const nodeState of finalRun.nodeStates.values()) {
+        if (nodeState.status === "failed" && nodeState.error) {
+          lastRunError = nodeState.error;
+          break;
+        }
+      }
+
       // Update run record to final terminal status
       db2.update(schema.runs)
         .set({
           status: finalRun.status,
           totalCost: finalRun.totalCost,
+          error: lastRunError,
           completedAt,
         })
         .where(eq(schema.runs.id, runId))
@@ -356,6 +436,7 @@ export async function POST(
           lastRunId: runId,
           lastRunStatus: finalRun.status,
           lastRunAt: completedAt,
+          lastRunError,
           updatedAt: now,
         })
         .where(eq(schema.workflows.id, workflowId))

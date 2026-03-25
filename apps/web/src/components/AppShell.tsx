@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 const NAV_ITEMS = [
   { label: "Get Started", href: "/getting-started", icon: RocketIcon },
   { label: "Workflows", href: "/workflows", icon: WorkflowIcon },
+  { label: "Video Projects", href: "/editor", icon: VideoProjectsIcon },
   { label: "Generate", href: "/generate", icon: GenerateIcon },
   { label: "Prompt", href: "/prompt", icon: PromptIcon },
   { label: "Settings", href: "/settings", icon: SettingsIcon },
@@ -211,6 +212,16 @@ function UsageIcon({ size = 18 }: { size?: number }) {
       <path d="M12 20V10" />
       <path d="M18 20V4" />
       <path d="M6 20v-4" />
+    </svg>
+  );
+}
+
+function VideoProjectsIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="20" height="14" rx="2" />
+      <path d="M7 6V4M12 6V4M17 6V4" />
+      <path d="M10 12l4.5 2.5L10 17V12z" fill="currentColor" stroke="none" />
     </svg>
   );
 }

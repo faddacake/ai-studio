@@ -35,6 +35,7 @@ export async function GET(
       workflowId:   schema.runs.workflowId,
       status:       schema.runs.status,
       totalCost:    schema.runs.totalCost,
+      error:        schema.runs.error,
       budgetCap:    schema.runs.budgetCap,
       budgetMode:   schema.runs.budgetMode,
       startedAt:    schema.runs.startedAt,

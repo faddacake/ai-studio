@@ -1,6 +1,7 @@
 import { Worker, Queue } from "bullmq";
 import { getDb, closeDb, checkpoint } from "@aistudio/db";
 import { processNodeJob, type NodeJobData, type NodeJobResult } from "./nodeJobProcessor.js";
+import { processExportJob, type ExportJobProcessorData } from "./exportJobProcessor.js";
 
 const REDIS_URL = process.env.REDIS_URL || "redis://redis:6379";
 const redisConnection = { url: REDIS_URL };
@@ -21,6 +22,15 @@ export const downloadsQueue = new Queue("downloads", {
   defaultJobOptions: {
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
+    removeOnComplete: { count: 1000 },
+    removeOnFail: { count: 5000 },
+  },
+});
+
+export const exportJobsQueue = new Queue("export-jobs", {
+  connection: redisConnection,
+  defaultJobOptions: {
+    attempts: 1,
     removeOnComplete: { count: 1000 },
     removeOnFail: { count: 5000 },
   },
@@ -53,6 +63,15 @@ async function processDownloadJob(job: { id?: string; data: Record<string, unkno
   return { status: "completed" };
 }
 
+async function processExportJobBullMQ(job: { id?: string; data: Record<string, unknown> }) {
+  console.log(`[worker] Processing export job ${job.id}`);
+  getDb();
+  const data = job.data as unknown as ExportJobProcessorData;
+  const result = processExportJob(data);
+  console.log(`[worker] Export job ${result.jobId} → ${result.status}`);
+  return result;
+}
+
 function startWorkers() {
   const concurrency = parseInt(process.env.MAX_CONCURRENT_NODES || "5");
 
@@ -64,6 +83,11 @@ function startWorkers() {
   const downloadWorker = new Worker("downloads", processDownloadJob, {
     connection: redisConnection,
     concurrency: 10,
+  });
+
+  const exportWorker = new Worker("export-jobs", processExportJobBullMQ, {
+    connection: redisConnection,
+    concurrency: 1,
   });
 
   predictionWorker.on("completed", (job) => {
@@ -82,6 +106,14 @@ function startWorkers() {
     console.error(`[worker] Download job ${job?.id} failed:`, err.message);
   });
 
+  exportWorker.on("completed", (job) => {
+    console.log(`[worker] Export job ${job.id} completed`);
+  });
+
+  exportWorker.on("failed", (job, err) => {
+    console.error(`[worker] Export job ${job?.id} failed:`, err.message);
+  });
+
   console.log(`[worker] Workers started (predictions concurrency=${concurrency}, downloads concurrency=10)`);
 
   // Graceful shutdown
@@ -89,8 +121,10 @@ function startWorkers() {
     console.log("[worker] Shutting down...");
     await predictionWorker.close();
     await downloadWorker.close();
+    await exportWorker.close();
     await predictionsQueue.close();
     await downloadsQueue.close();
+    await exportJobsQueue.close();
     checkpoint();
     closeDb();
     process.exit(0);
@@ -109,5 +143,5 @@ if (isMainModule) {
   startWorkers();
 }
 
-export { startWorkers, processNodeJob };
-export type { NodeJobData, NodeJobResult };
+export { startWorkers, processNodeJob, processExportJob };
+export type { NodeJobData, NodeJobResult, ExportJobProcessorData };

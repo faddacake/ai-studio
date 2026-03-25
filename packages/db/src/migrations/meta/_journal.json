@@ -22,6 +22,55 @@
       "when": 1771500000000,
       "tag": "0002_workflow_pinned",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1771600000000,
+      "tag": "0003_run_error_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1771700000000,
+      "tag": "0004_workflow_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1771800000000,
+      "tag": "0005_node_presets",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1771900000000,
+      "tag": "0006_workflow_fragments",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1772000000000,
+      "tag": "0007_editor_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1772100000000,
+      "tag": "0008_editor_export_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1772200000000,
+      "tag": "0009_editor_export_jobs_render_result",
+      "breakpoints": true
     }
   ]
 }

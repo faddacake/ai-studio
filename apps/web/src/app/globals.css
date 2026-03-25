@@ -8,7 +8,7 @@
   --color-border: #2a2a2a;
   --color-text-primary: #fafafa;
   --color-text-secondary: #a0a0a0;
-  --color-text-muted: #666666;
+  --color-text-muted: #828282;
   --color-accent: #3b82f6;
   --color-accent-hover: #2563eb;
   --color-success: #22c55e;
@@ -33,6 +33,12 @@ body {
   .nav-mobile-menu {
     display: flex !important;
   }
+}
+
+/* Run-status pulse animation for the "running" indicator dot */
+@keyframes run-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(1.35); }
 }
 
 /* Reduced motion */

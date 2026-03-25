@@ -16,6 +16,7 @@ const MIME: Record<string, string> = {
   jpeg: "image/jpeg",
   jpg:  "image/jpeg",
   webp: "image/webp",
+  mp4:  "video/mp4",
 };
 
 // ── Buffer coercion ──

@@ -23,7 +23,11 @@ import { isArtifactRef, type CandidateCollection } from "@aistudio/shared";
 import {
   MockGeneratorAdapter,
   FalGeneratorAdapter,
+  ReplicateGeneratorAdapter,
+  FalVideoGeneratorAdapter,
   createGenerator,
+  createVideoGenerator,
+  isFalVideoModelId,
   type GeneratorAdapter,
   type GenerateOpts,
   type GeneratedImage,
@@ -117,6 +121,94 @@ describe("FalGeneratorAdapter", () => {
   });
 });
 
+// ── ReplicateGeneratorAdapter ──────────────────────────────────────────────
+
+describe("ReplicateGeneratorAdapter", () => {
+  it("has kind === 'replicate'", () => {
+    const adapter = new ReplicateGeneratorAdapter("fake-token");
+    assert.equal(adapter.kind, "replicate");
+  });
+
+  it("accepts a custom modelSlug", () => {
+    const adapter = new ReplicateGeneratorAdapter("fake-token", "stability-ai/sdxl");
+    assert.equal(adapter.kind, "replicate");
+  });
+});
+
+// ── FalVideoGeneratorAdapter ───────────────────────────────────────────────
+
+describe("FalVideoGeneratorAdapter", () => {
+  it("has kind === 'fal-video'", () => {
+    const adapter = new FalVideoGeneratorAdapter("fake-key");
+    assert.equal(adapter.kind, "fal-video");
+  });
+
+  it("accepts a custom modelId", () => {
+    const adapter = new FalVideoGeneratorAdapter("key", "fal-ai/kling-video/v1.6/standard/text-to-video");
+    assert.equal(adapter.kind, "fal-video");
+  });
+});
+
+// ── isFalVideoModelId ──────────────────────────────────────────────────────
+
+describe("isFalVideoModelId", () => {
+  it("returns true for Kling model ID", () => {
+    assert.equal(isFalVideoModelId("fal-ai/kling-video/v1.6/standard/text-to-video"), true);
+  });
+
+  it("returns true for any fal-ai/kling-video prefix", () => {
+    assert.equal(isFalVideoModelId("fal-ai/kling-video/v2/pro/text-to-video"), true);
+  });
+
+  it("returns false for FLUX image model ID", () => {
+    assert.equal(isFalVideoModelId("fal-ai/flux/schnell"), false);
+  });
+
+  it("returns false for unrelated model ID", () => {
+    assert.equal(isFalVideoModelId("stability-ai/sdxl"), false);
+  });
+});
+
+// ── createVideoGenerator factory ───────────────────────────────────────────
+
+describe("createVideoGenerator factory", () => {
+  it("returns FalVideoGeneratorAdapter when provider=fal and apiKey is provided", () => {
+    const adapter = createVideoGenerator({ provider: "fal", apiKey: "fal-test-key" });
+    assert.equal(adapter.kind, "fal-video");
+  });
+
+  it("returns FalVideoGeneratorAdapter when FAL_API_KEY env var is set", () => {
+    const savedKey = process.env.FAL_API_KEY;
+    process.env.FAL_API_KEY = "env-key";
+
+    const adapter = createVideoGenerator({ provider: "fal" });
+    assert.equal(adapter.kind, "fal-video");
+
+    if (savedKey !== undefined) process.env.FAL_API_KEY = savedKey;
+    else delete process.env.FAL_API_KEY;
+  });
+
+  it("throws when no API key is available for fal provider", () => {
+    const savedKey = process.env.FAL_API_KEY;
+    delete process.env.FAL_API_KEY;
+
+    assert.throws(
+      () => createVideoGenerator({ provider: "fal" }),
+      /not configured/,
+      "should throw with actionable message when no key",
+    );
+
+    if (savedKey !== undefined) process.env.FAL_API_KEY = savedKey;
+  });
+
+  it("throws for unknown provider", () => {
+    assert.throws(
+      () => createVideoGenerator({ provider: "unknown-provider", apiKey: "key" }),
+      /not configured/,
+    );
+  });
+});
+
 // ── createGenerator factory ────────────────────────────────────────────────
 
 describe("createGenerator factory", () => {
@@ -150,6 +242,36 @@ describe("createGenerator factory", () => {
 
     if (savedKey !== undefined) process.env.FAL_API_KEY = savedKey;
     else delete process.env.FAL_API_KEY;
+  });
+
+  it("returns ReplicateGeneratorAdapter when provider=replicate and apiKey is provided", () => {
+    const adapter = createGenerator({ provider: "replicate", apiKey: "r8_test-token" });
+    assert.equal(adapter.kind, "replicate", "should return replicate adapter when token is provided");
+  });
+
+  it("returns ReplicateGeneratorAdapter when REPLICATE_API_TOKEN env var is set", () => {
+    const savedKey = process.env.REPLICATE_API_TOKEN;
+    process.env.REPLICATE_API_TOKEN = "r8_env-token";
+
+    const adapter = createGenerator({ provider: "replicate" });
+    assert.equal(adapter.kind, "replicate", "should use REPLICATE_API_TOKEN env var");
+
+    if (savedKey !== undefined) process.env.REPLICATE_API_TOKEN = savedKey;
+    else delete process.env.REPLICATE_API_TOKEN;
+  });
+
+  it("does not pick up REPLICATE_API_TOKEN when provider=fal", () => {
+    const savedFal = process.env.FAL_API_KEY;
+    const savedRep = process.env.REPLICATE_API_TOKEN;
+    delete process.env.FAL_API_KEY;
+    process.env.REPLICATE_API_TOKEN = "r8_should-not-be-used";
+
+    const adapter = createGenerator({ provider: "fal" });
+    assert.equal(adapter.kind, "mock", "fal provider should not use REPLICATE_API_TOKEN");
+
+    if (savedFal !== undefined) process.env.FAL_API_KEY = savedFal;
+    if (savedRep !== undefined) process.env.REPLICATE_API_TOKEN = savedRep;
+    else delete process.env.REPLICATE_API_TOKEN;
   });
 });
 

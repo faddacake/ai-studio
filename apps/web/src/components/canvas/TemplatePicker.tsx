@@ -11,7 +11,25 @@ import {
   type TemplatePackSource,
 } from "@aistudio/shared";
 import type { WorkflowGraph } from "@aistudio/shared";
+import { MiniGraphPreview } from "./MiniGraphPreview";
 import { rehydratePersistedPacks, persistPack } from "@/lib/templatePackStorage";
+
+// ── DB template row shape returned by GET /api/templates ──
+
+interface DbTemplateRow {
+  id: string;
+  name: string;
+  description: string;
+  graph: WorkflowGraph;
+  tags: string[];
+  updatedAt: string;
+}
+
+// Per-template DB metadata (tags + updatedAt) — stored out-of-band from the pack system
+interface DbTemplateMeta {
+  tags: string[];
+  updatedAt: string;
+}
 
 // ── Load built-in packs + rehydrate persisted packs on first import ──
 
@@ -51,6 +69,8 @@ interface EnrichedTemplate {
   entry: TemplateEntry;
   pack: TemplatePack;
   availability: PackAvailability;
+  /** Only present for DB-saved user templates */
+  dbMeta?: DbTemplateMeta;
 }
 
 // ── Props ──
@@ -59,21 +79,70 @@ export interface TemplatePickerProps {
   open: boolean;
   onClose: () => void;
   onSelect: (graph: WorkflowGraph, name: string) => void;
+  /** Increment to trigger a re-fetch of user-saved DB templates */
+  refreshKey?: number;
 }
 
 // ── Component ──
 
-export function TemplatePicker({ open, onClose, onSelect }: TemplatePickerProps) {
+export function TemplatePicker({ open, onClose, onSelect, refreshKey = 0 }: TemplatePickerProps) {
   const [activeTab, setActiveTab] = useState<FilterMode>("all");
   const [search, setSearch] = useState("");
   const [importCount, setImportCount] = useState(0);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Per-template metadata for DB templates — keyed by template name.
+  // Stored in a ref so it doesn't trigger re-renders independently of importCount.
+  const dbMetaRef = useRef<Map<string, DbTemplateMeta>>(new Map());
 
   useEffect(() => {
     ensurePacksLoaded();
   }, []);
+
+  // Fetch user-saved DB templates and register them as a synthetic "user" pack
+  useEffect(() => {
+    fetch("/api/templates")
+      .then((r) => r.ok ? (r.json() as Promise<DbTemplateRow[]>) : Promise.resolve([]))
+      .then((rows) => {
+        const DB_PACK_ID = "__db-user-templates__";
+        if (rows.length === 0) {
+          if (templatePackLoader.has(DB_PACK_ID)) {
+            templatePackLoader.unregister(DB_PACK_ID);
+            dbMetaRef.current.clear();
+            setImportCount((c) => c + 1);
+          }
+          return;
+        }
+        // Deduplicate by name (last write wins for same name)
+        const unique = rows.filter((r, i, arr) => arr.findIndex((x) => x.name === r.name) === i);
+
+        // Store per-template metadata in the ref before triggering re-render
+        const meta = new Map<string, DbTemplateMeta>();
+        for (const r of unique) {
+          meta.set(r.name, { tags: r.tags ?? [], updatedAt: r.updatedAt });
+        }
+        dbMetaRef.current = meta;
+
+        const pack: TemplatePack = {
+          manifest: {
+            id: DB_PACK_ID,
+            name: "My Templates",
+            version: "1.0.0",
+            source: "user",
+            category: "my-templates",
+            templates: unique.map((r) => r.name),
+            previews: Object.fromEntries(
+              unique.filter((r) => r.description).map((r) => [r.name, r.description]),
+            ),
+          },
+          templates: Object.fromEntries(unique.map((r) => [r.name, r.graph])),
+        };
+        templatePackLoader.register(pack);
+        setImportCount((c) => c + 1);
+      })
+      .catch(() => {});
+  }, [refreshKey]);
 
   // Auto-dismiss success message after 4 seconds
   useEffect(() => {
@@ -145,6 +214,7 @@ export function TemplatePicker({ open, onClose, onSelect }: TemplatePickerProps)
 
     for (const pack of packs) {
       const availability = templatePackLoader.checkAvailability(pack.manifest.id);
+      const isUserPack = pack.manifest.source === "user";
 
       for (const templateId of pack.manifest.templates) {
         const graph = pack.templates[templateId];
@@ -160,6 +230,7 @@ export function TemplatePicker({ open, onClose, onSelect }: TemplatePickerProps)
           },
           pack,
           availability,
+          dbMeta: isUserPack ? dbMetaRef.current.get(templateId) : undefined,
         });
       }
     }
@@ -409,6 +480,17 @@ export function TemplatePicker({ open, onClose, onSelect }: TemplatePickerProps)
 
 // ── Template card ──
 
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(diff / 86_400_000);
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
+
 function TemplateCard({
   item,
   onSelect,
@@ -416,16 +498,20 @@ function TemplateCard({
   item: EnrichedTemplate;
   onSelect: (item: EnrichedTemplate) => void;
 }) {
-  const { entry, pack, availability } = item;
+  const { entry, pack, availability, dbMeta } = item;
   const nodeCount = entry.graph.nodes.length;
   const edgeCount = entry.graph.edges.length;
   const isPack = pack.manifest.templates.length > 1;
-  const tags = pack.manifest.tags ?? [];
+  // For user templates, prefer per-template tags from DB over pack-level tags
+  const tags = dbMeta?.tags?.length ? dbMeta.tags : (pack.manifest.tags ?? []);
+  const [showPreview, setShowPreview] = useState(false);
 
   return (
     <button
       type="button"
       onClick={() => onSelect(item)}
+      onMouseEnter={() => setShowPreview(true)}
+      onMouseLeave={() => setShowPreview(false)}
       className="group flex w-full flex-col gap-1.5 rounded-lg border border-neutral-800 px-4 py-3 text-left transition-colors hover:border-neutral-600 hover:bg-neutral-800/40"
     >
       {/* Row 1: name + badges */}
@@ -452,7 +538,7 @@ function TemplateCard({
       )}
 
       {/* Row 3: metadata row */}
-      <div className="flex items-center gap-2 text-[10px] text-neutral-600">
+      <div className="flex flex-wrap items-center gap-2 text-[10px] text-neutral-600">
         <span className="flex items-center gap-1">
           <NodeCountIcon />
           {nodeCount} node{nodeCount !== 1 ? "s" : ""}
@@ -462,6 +548,19 @@ function TemplateCard({
           <EdgeCountIcon />
           {edgeCount} edge{edgeCount !== 1 ? "s" : ""}
         </span>
+
+        {/* Updated-at for user templates */}
+        {dbMeta?.updatedAt && (
+          <>
+            <span className="text-neutral-700">|</span>
+            <span
+              className="text-neutral-500"
+              title={new Date(dbMeta.updatedAt).toLocaleString()}
+            >
+              Updated {formatRelativeTime(dbMeta.updatedAt)}
+            </span>
+          </>
+        )}
 
         {/* Tags (show first 3) */}
         {tags.length > 0 && (
@@ -490,6 +589,16 @@ function TemplateCard({
             Missing:{" "}
             {[...availability.missingNodeTypes, ...availability.missingProviders].join(", ")}
           </span>
+        </div>
+      )}
+
+      {/* Row 5: graph topology preview (hover only) */}
+      {showPreview && nodeCount > 0 && (
+        <div
+          className="mt-0.5 h-24 w-full overflow-hidden rounded border border-neutral-700/50"
+          style={{ pointerEvents: "none" }}
+        >
+          <MiniGraphPreview graph={entry.graph} />
         </div>
       )}
     </button>

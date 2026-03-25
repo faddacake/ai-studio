@@ -1,7 +1,717 @@
 # SESSION CONTEXT — AI Studio
 
-Date: 2026-03-24
-Session: Video Editor — minimal export-job contract derived from RenderPlan ✅ SHIPPED
+Date: 2026-03-25
+Session: Video Editor — export pipeline integration smoke test ✅ SHIPPED
+
+---
+
+## Session Summary — Export pipeline integration smoke test (2026-03-25)
+
+The full export pipeline is now contract-locked by an integration test that exercises real system boundaries (in-memory SQLite, real runner, real data layer) with no mocks of internal steps.
+
+**`apps/web/src/app/api/export-jobs/__tests__/exportPipeline.integration.test.ts`** (new, 14 cases across 4 suites — `test:integration`):
+
+Pipeline under test: `createEditorExportJob` → `runExportJob` → `buildJobResponse` (mirrors GET route projection)
+
+- **create → run → read** (8 assertions): non-null response, status `"completed"`, `renderResult` non-null, `sceneCount` and `totalDurationMs` match payload, `renderResult` is a parsed object (not string), both fields are numbers
+- **response shape** (3 assertions): exactly 8 fields (`createdAt id projectId renderResult sceneCount status totalDurationMs updatedAt`), no `render_result` DB column name leak, no `payload` field
+- **negative — unrun job** (1 assertion): pending job has `renderResult: null`
+- **isolation** (2 assertions): executing job A does not affect job B; two executed jobs carry independent `renderResult` values
+
+**`apps/web/package.json`** (updated):
+- Added `"test:integration": "node --import tsx --test 'src/app/api/**/*.integration.test.ts'"`
+
+All 14 integration tests pass. Web TypeScript clean.
+
+Contract milestone: the export pipeline from `createEditorExportJob` through `runExportJob` to GET response shape is now verified end-to-end at every session. No mocking of the runner, adapter, data layer, or serialisation path.
+
+---
+
+## Session Summary — Surface renderResult in export status UI (2026-03-25)
+
+---
+
+## Session Summary — Surface renderResult in export status UI (2026-03-25)
+
+Wired `renderResult` into the editor UI by building the minimal client-side stack needed to trigger an export job and observe its completed render metadata. The flow is: user clicks Export → POST creates the job → GET reads status (including `renderResult`) → display. No polling; status is fetched once after trigger. The full end-to-end contract is now visible from adapter output through DB persistence, API read, and status display.
+
+**`apps/web/src/lib/exportJobStatus.ts`** (new) — client-side type module:
+- `ExportJobStatusResponse` — typed mirror of `GET /api/export-jobs/[jobId]` response; `renderResult: ExportRenderResult | null`
+- `ExportRenderResult` — client-side equivalent of `PersistedRenderResult`; `{ sceneCount, totalDurationMs }`
+- `formatDurationMs(ms)` — `"5.0s"` (sub-60 s) or `"1:30"` (60 s+) display helper
+- `hasRenderResult(response)` — type-narrowing guard; true only for completed + non-null
+
+**`apps/web/src/hooks/useExportJob.ts`** (new) — trigger-and-observe hook:
+- `useExportJob(projectId)` → `{ state, jobStatus, error, trigger, reset }`
+- States: `idle → triggering → fetching → done | error`; no polling
+- Step 1: POST `/api/editor-projects/[id]/export` → `{ jobId }`
+- Step 2: GET `/api/export-jobs/[jobId]` → `ExportJobStatusResponse` (with `renderResult`)
+
+**`apps/web/src/components/editor/ExportStatusPanel.tsx`** (new) — read-only status display:
+- `idle`: Export button; `triggering/fetching`: "Exporting…"; `error`: error + Retry button
+- `done`: "✓ Export queued" + `sceneCount` scenes + `formatDurationMs(totalDurationMs)` when `hasRenderResult`
+- No file/artifact affordances; no download controls; no speculative fields
+
+**`apps/web/src/components/editor/EditorToolbar.tsx`** (updated):
+- Added `exportState`, `exportJobStatus`, `exportError`, `onExport`, `onExportReset` props
+- `ExportStatusPanel` rendered before the Save button in the toolbar row
+
+**`apps/web/src/components/editor/EditorShell.tsx`** (updated):
+- `useExportJob(project.id)` wired in; state + callbacks passed to `EditorToolbar`
+
+**`apps/web/src/lib/exportJobStatus.test.ts`** (new, 24 cases across 4 suites — `test:lib`):
+- `formatDurationMs`: 0 ms, seconds, boundaries, minutes, padding
+- `hasRenderResult`: all status/null combinations
+- Response shape: `renderResult` key (not `render_result`); null for pending/failed; no file fields
+- `ExportRenderResult`: exactly `{ sceneCount, totalDurationMs }`
+
+End-to-end export contract:
+adapter output → runner normalisation → DB persistence (`render_result`) → API read (`renderResult`) → `useExportJob` hook → `ExportStatusPanel` UI
+
+227 lib + 369 server = 596 tests passing. Web TypeScript clean.
+
+Next recommended task: Add an integration smoke test that drives the full export pipeline (POST create → runner → GET status) against an in-memory DB and asserts the response includes a non-null `renderResult`.
+
+---
+
+## Session Summary — Expose renderResult in export job read API (2026-03-25)
+
+## Session Summary — Expose renderResult in export job read API (2026-03-25)
+
+Added `renderResult: PersistedRenderResult | null` to the `GET /api/export-jobs/[jobId]` response. The route reads the already-parsed structured value directly from `EditorExportJob` — no JSON parsing in the route, no raw column names exposed. Pending and failed jobs return `null`; completed jobs return the normalised object written by the runner.
+
+**`apps/web/src/app/api/export-jobs/[jobId]/route.ts`** (updated):
+- Added `renderResult: job.renderResult` to the `NextResponse.json(...)` projection
+- Value is `PersistedRenderResult | null`, already deserialised by the data layer
+- No parsing, no raw `render_result` column name, no leaking of internal schema
+
+**`apps/web/src/server/api/editorExportJobRead.test.ts`** (updated + 8 new cases across 3 new suites):
+- `buildReadResponse` updated to include `renderResult`
+- Field-count assertion updated: seven → eight (`renderResult` added)
+- **pending job**: `renderResult: null` is present as an explicit key
+- **failed job**: `renderResult: null`
+- **completed job**: structured `PersistedRenderResult` object (not a string); `sceneCount` and `totalDurationMs` match persisted values; raw `render_result` column name absent from response
+
+Boundary ownership summary:
+- Runner: sole normalisation authority (RenderResult → PersistedRenderResult)
+- Data layer: sole serialise/deserialise path (`setExportJobRenderResult` / `parseRow`)
+- Route: reads structured data only — no parsing, no raw column names
+- Callers: receive `PersistedRenderResult | null` as a typed object
+
+207 lib + 369 server = 576 tests passing. Web TypeScript clean.
+
+Next recommended task: Surface `renderResult` in the editor project export status hook/component so the UI can observe completed render metadata from the read API.
+
+---
+
+## Session Summary — Persist render result to DB row (2026-03-25)
+
+## Session Summary — Persist render result to DB row (2026-03-25)
+
+Wired `PersistedRenderResult` into the DB row as the canonical stored render metadata. The runner now writes the normalised result to the row immediately after successful lifecycle execution; `getEditorExportJob` parses and returns it as structured data. Ownership is explicit: the runner normalises, the data layer serialises/deserialises, callers never see raw JSON.
+
+**`packages/db/src/schema.ts`** — added `renderResult: text("render_result")` (nullable) to `editorExportJobs`
+
+**`packages/db/src/migrations/0009_editor_export_jobs_render_result.sql`** (new) — `ALTER TABLE editor_export_jobs ADD render_result text`
+
+**`packages/db/src/migrations/meta/_journal.json`** — registered migrations 0008 and 0009
+
+**`apps/web/src/server/api/editorExportJobs.ts`** (updated):
+- `EditorExportJob` gains `renderResult: PersistedRenderResult | null` — null for pending/running/failed rows
+- `parseRow` deserialises `render_result` JSON → `PersistedRenderResult | null`
+- `createEditorExportJob` returns `renderResult: null` (new creation is unrendered)
+- `setExportJobRenderResult(id, renderResult, db?)` (new) — sole write path; called only by the runner
+
+**`apps/web/src/server/api/editorExportJobRunner.ts`** (updated):
+- Step 5 added: `setExportJobRenderResult(jobId, renderResult, _db)` called after `executeExportJob`
+- Runner remains the sole normalisation authority; data layer owns serialisation
+
+**All 18 test files with inline migration SQL** — `render_result TEXT` column added to `MIGRATION_SQL`
+
+**`apps/web/src/server/api/editorExportJobRunnerContract.test.ts`** (extended, 9 new cases in new suite "renderResult persisted to DB row"):
+- Completed row has non-null renderResult; fields match payload
+- renderResult shape is exactly `{ sceneCount, totalDurationMs }`
+- Spy-injected adapter values survive the full round-trip to DB and back
+- `getEditorExportJob` returns structured data, not a raw string
+- Pending and failed rows have `renderResult = null`
+- No file/artifact fields present in persisted data
+
+207 lib + 361 server = 568 tests passing. Web TypeScript clean. DB package builds clean.
+
+Next recommended task: Expose `renderResult` from the export job read API route (`GET /api/editor-projects/[id]/export/[jobId]`) so callers can observe the persisted render result without accessing the DB directly.
+
+---
+
+## Session Summary — Minimal persisted render result contract (2026-03-25)
+
+Defined `PersistedRenderResult` as the stable stored boundary between the renderer adapter and the rest of the system. The runner now explicitly normalises raw adapter output (`RenderResult`) into this contract — it is the sole normalisation point. The two types are intentionally separate so the renderer can evolve its output without changing what is stored, and the stored contract can gain new fields (e.g. artifact metadata) without touching the adapter.
+
+**Decision: why two types instead of one?**
+`RenderResult` is the raw boundary the adapter owns; it will grow with renderer-specific concerns (codec, file path, etc.) when real rendering lands. `PersistedRenderResult` is the stable, minimal, storage-facing contract — it survives renderer replacement. Keeping them separate makes each boundary's ownership unambiguous.
+
+**`apps/web/src/server/api/editorExportJobTypes.ts`** (new) — shared internal types:
+- `PersistedRenderResult: { sceneCount, totalDurationMs }` — minimal, no file fields, no optional speculative fields
+- Documented explicitly: future additions (artifact metadata, output path) must be made here, not inferred from renderer shapes
+
+**`apps/web/src/server/api/editorExportJobRunner.ts`** (updated):
+- Captures raw `RenderResult` from the adapter and immediately normalises it: `const raw = render(parsed.data); const renderResult: PersistedRenderResult = { sceneCount: raw.sceneCount, totalDurationMs: raw.totalDurationMs }`
+- `ExportRunnerResult` gains `renderResult: PersistedRenderResult` — result shape is now `{ jobId, renderResult, status }`
+- Re-exports `PersistedRenderResult` for downstream consumers
+- Runner remains the only place normalisation occurs
+
+**`apps/web/src/server/api/editorExportJobRunnerContract.test.ts`** (updated + 9 new cases):
+- "result has exactly three fields: jobId, renderResult, status" (updated from two)
+- New suite "persisted render result contract": present on success; exactly `{ sceneCount, totalDurationMs }`; values match validated payload; contains no DB-row or file/artifact fields; deterministic; spy injection proves runner is sole normalisation point
+
+**`apps/web/src/server/api/editorExportJobRendererAdapter.test.ts`** (updated + 2 new cases):
+- New suite "output isolation from persisted contract": `RenderResult` contains no lifecycle/status fields; no file/artifact fields
+
+**`apps/web/src/server/api/editorExportJobWorkerProcessor.test.ts`** (updated):
+- Result-shape assertion updated to `["jobId", "renderResult", "status"]`
+
+207 lib + 352 server = 559 tests passing. Web TypeScript clean.
+
+Next recommended task: Wire the `PersistedRenderResult` into the DB row by adding a nullable `renderResult` column to `editor_export_jobs`, writing it from the runner after successful execution, and reading it back in `getEditorExportJob`.
+
+---
+
+## Session Summary — Renderer-facing placeholder adapter in export runner (2026-03-25)
+
+Introduced a minimal renderer-facing placeholder adapter and wired it into `runExportJob` as the stable future renderer insertion point. The runner now flows through four explicit steps: load → validate → render (adapter) → lifecycle.
+
+**`apps/web/src/server/api/editorExportJobRenderer.ts`** (new) — placeholder adapter:
+- `RenderResult: { sceneCount, totalDurationMs }` — minimal, deterministic, derived directly from the payload
+- `renderExportJob(payload: ExportJobPayload): RenderResult` — the stable boundary contract; real renderer replaces the body here
+- No DB, no queue, no artifacts, no I/O — pure input/output function
+
+**`apps/web/src/server/api/editorExportJobRunner.ts`** (updated) — four-step execution seam:
+- Step 3 added: `render(parsed.data)` — calls the adapter with the validated payload before advancing the lifecycle
+- `render` parameter is injectable (`default = renderExportJob`); real renderer or test spy passes in here
+- Adapter failure leaves the job `pending` (lifecycle not yet claimed) — BullMQ can retry
+- Signature: `runExportJob(jobId, db?, render?)` — backward-compatible; existing callers unchanged
+
+**`apps/web/src/server/api/editorExportJobRendererAdapter.test.ts`** (new, 9 cases across 3 suites):
+- **Result shape**: exactly `{ sceneCount, totalDurationMs }`; mirrors payload fields; correct for single/multi-scene
+- **Determinism**: identical inputs → identical outputs; different payloads → different sceneCount
+- **Input contract**: accepts only `ExportJobPayload` — no DB row fields, no queue data
+
+**`apps/web/src/server/api/editorExportJobRunnerContract.test.ts`** (extended, 7 new cases in new suite):
+- Runner passes validated persisted payload into the adapter (spy injection)
+- Adapter receives only the validated payload — no DB row fields (status, createdAt absent)
+- Adapter failure propagates clearly
+- Adapter failure leaves job `pending` — lifecycle not advanced
+- Adapter failure is distinct from payload validation failure
+- Successful execution with default adapter still reaches `completed`
+- Queue payload still only needs `jobId`
+
+207 lib + 341 server = 548 tests passing. Web TypeScript clean.
+
+Next recommended task: Define the minimal persisted render-result shape the runner will eventually store after the placeholder adapter returns successfully.
+
+---
+
+## Session Summary — Export runner payload loading and render input validation (2026-03-25)
+
+Extended `runExportJob` to load the persisted export payload from the DB row and validate it against `ExportJobPayloadSchema` before advancing the lifecycle — establishing the exact render input boundary the future renderer will consume.
+
+**`apps/web/src/server/api/editorExportJobRunner.ts`** (updated) — three-step execution seam:
+- Step 1: `getEditorExportJob(jobId)` — loads the persisted row; throws `export job not found` if missing
+- Step 2: `ExportJobPayloadSchema.safeParse(job.payload)` — validates the stored payload; throws `export job payload invalid for job <id>: …` if malformed
+- Step 3: `executeExportJob(jobId, "completed")` — lifecycle: pending → running → completed (renderer plugs in here, receives `parsed.data`)
+- Now imports `ExportJobPayloadSchema` from `@aistudio/shared` and `getEditorExportJob` from `./editorExportJobs`
+- DB is the sole source of truth; queue still carries only `{ jobId }`
+
+**`apps/web/src/server/api/editorExportJobRunnerContract.test.ts`** (extended — 5 new cases across 2 new suites):
+- **Render input validation (valid payload)**: accepted payload proceeds to `completed`; payload is sourced from DB row, not queue
+- **Render input validation (malformed payload)**: empty `{}` payload throws `export job payload invalid`; empty `scenes` array throws `export job payload invalid`; payload error is distinct from lifecycle error
+- All 16 prior cases continue to pass (lifecycle and result-shape coverage unchanged)
+
+207 lib + 325 server = 532 tests passing. Web TypeScript clean.
+
+Next recommended task: Introduce a renderer-facing placeholder adapter that accepts the validated render input contract from `runExportJob` and returns a deterministic mock render result.
+
+---
+
+## Session Summary — Dedicated export runner execution seam (2026-03-25)
+
+Introduced `runExportJob` as the single authoritative execution seam, collapsed the near-duplicate processor compositions into one clear contract, and documented the renderer insertion point.
+
+**`apps/web/src/server/api/editorExportJobRunner.ts`** (new) — the execution seam:
+- `runExportJob(jobId, db?)` — calls `executeExportJob(jobId, "completed", db)`; renderer plugs in here
+- Returns `ExportRunnerResult: { jobId, status }` — minimal, stable shape
+- Throws on missing job or invalid lifecycle state; no pre-check needed (`executeExportJob` → `transitionJob` already handles it)
+- All comments identify this as the single insertion point for future renderer integration
+
+**`apps/web/src/server/api/editorExportJobProcessor.ts`** (simplified) — now a thin BullMQ adapter:
+- `processExportJob(data, db?)` → `return runExportJob(data.jobId, db)` (3-line body)
+- All execution logic removed; processor is purely type adaptation from queue payload to runner
+
+**`packages/worker/src/exportJobProcessor.ts`** (simplified) — mirrors runner contract:
+- Moved SELECT to lazy error path: try claim first, look up row only on `changes === 0`
+- Reduced from 3 queries (happy path: SELECT + 2 UPDATEs) to 2 queries (UPDATE + UPDATE)
+- Comment explicitly identifies `runExportJob` as the mirrored contract
+
+**`apps/web/src/server/api/editorExportJobRunnerContract.test.ts`** (new, 16 cases across 5 suites):
+- **Successful execution**: status `completed`, jobId matches, DB row updated, non-status fields unchanged
+- **Result shape**: exactly `{ jobId, status }`, only jobId required (no queue payload needed)
+- **Error cases**: missing row "not found", running/completed/failed each throw lifecycle error
+- **Processor delegation**: processor result shape matches runner; error propagates; result unchanged
+- **Multiple executions**: two jobs independently; one execution doesn't affect another pending job
+
+207 lib + 320 server = 527 tests passing. Web TypeScript clean. Worker TypeScript clean.
+
+Next recommended task: Extend the dedicated export runner to load the persisted export payload and validate the exact render input contract it will eventually hand to the renderer.
+
+---
+
+## Session Summary — BullMQ export worker processor skeleton (2026-03-25)
+
+Added the first real BullMQ worker processor for export jobs: consumes queued `{ jobId }` payloads and drives the DB-backed lifecycle to a terminal state, completing the queue-backed processing flow without real rendering.
+
+**`packages/worker/src/exportJobProcessor.ts`** (new) — standalone worker-process processor:
+- `processExportJob(data: { jobId }, db?)` using `sql` tag from `@aistudio/db` (no new deps)
+- Claim: `UPDATE ... SET status = 'running' WHERE id = ? AND status = 'pending'` (conditional, atomic)
+- Finish: `UPDATE ... SET status = 'completed' WHERE id = ? AND status = 'running'`
+- Throws on missing job or failed claim so BullMQ marks the queue job as failed
+- Injectable `db?` parameter for testability, following the codebase pattern
+
+**`packages/worker/src/index.ts`** (updated) — wired export-jobs worker:
+- `exportJobsQueue` — BullMQ Queue (`attempts: 1`, `removeOnComplete/Fail` retention)
+- `exportWorker` — BullMQ Worker (`concurrency: 1`, `processExportJobBullMQ` processor)
+- Lifecycle events (`completed`/`failed`) logged consistently with existing workers
+- Graceful shutdown closes `exportWorker` and `exportJobsQueue`
+
+**`apps/web/src/server/api/editorExportJobProcessor.ts`** (new) — testable web-app processor:
+- `processExportJob(data, db?)` using `executeExportJob` lifecycle helper
+- Explicit `getEditorExportJob` pre-check gives a clear "not found" error before the lifecycle attempt
+- Placeholder outcome: always `"completed"` (seam for future renderer)
+
+**`apps/web/src/server/api/editorExportJobWorkerProcessor.test.ts`** (new, 13 cases across 4 suites):
+- **Successful processing**: status `completed`, result jobId matches, DB row updated, non-status fields unchanged
+- **Result shape**: exactly `{ jobId, status }`, only `jobId` required in payload
+- **Error cases (→ BullMQ failure)**: missing row throws "not found"; running/completed/failed each throw lifecycle error
+- **Multiple independent jobs**: two jobs processed separately; processing one doesn't affect another pending job
+
+207 lib + 304 server = 511 tests passing. Web TypeScript clean. Worker TypeScript clean.
+
+Next recommended task: Replace the placeholder terminal behavior in the export worker with a dedicated internal export runner function that becomes the single execution seam for future renderer integration.
+
+---
+
+## Session Summary — BullMQ enqueue on export job creation (2026-03-25)
+
+Introduced the first real queue integration by enqueueing newly created export job IDs into BullMQ immediately after DB persistence, replacing manual simulation as the entry mechanism.
+
+**`apps/web/src/lib/queues/exportJobsQueue.ts`** (new) — export-job BullMQ queue module:
+- `getExportJobsQueue()` — singleton factory (follows `predictionsQueue.ts` pattern), throws if `REDIS_URL` unset
+- `enqueueExportJob(jobId, queue?)` — adds `"process-export"` job with `{ jobId }` payload and `{ jobId }` option for BullMQ-level deduplication
+- `ExportJobQueuePayload` — `{ jobId: string }` only; DB row is source of truth for all other data
+- `Enqueueable` — structural interface (`add(name, data, opts?)`) for test injection without satisfying BullMQ's full `Job` return type
+
+**`apps/web/src/app/api/editor-projects/[id]/export/route.ts`** (updated):
+- After `createEditorExportJob`, calls `await enqueueExportJob(job.id)`
+- Enqueue failure → `500 ENQUEUE_ERROR` (job row persisted but not queued — recoverable via drain route)
+- Response shape unchanged: `{ status: "accepted", jobId, totalDurationMs, sceneCount }`
+
+**`apps/web/src/server/api/editorExportJobEnqueue.test.ts`** (new, 14 cases across 3 suites) — no live Redis; uses injected `Enqueueable` mock:
+- **Call contract**: one `queue.add` call per enqueue; job name `"process-export"`; data is exactly `{ jobId }`; opts carry `jobId` for deduplication; no extra fields; distinct payloads for distinct IDs
+- **Failure propagation**: queue rejection throws; error not swallowed
+- **Persist + enqueue contract**: DB row created before enqueue; correct jobId enqueued; row stays `"pending"` post-enqueue; accepted response shape matches row; enqueue failure leaves row intact and `"pending"`
+
+207 lib + 291 server = 498 tests passing. TypeScript clean.
+
+Next recommended task: Add a minimal BullMQ worker processor that consumes queued export job IDs and drives them through the existing claim and finish helpers.
+
+---
+
+## Session Summary — Internal export queue drain route (2026-03-25)
+
+Added a minimal internal route that exposes the queue-drain skeleton through one explicit backend boundary, completing the simulation-phase execution surface.
+
+**`apps/web/src/app/api/export-jobs/drain/route.ts`** (new) — `POST /api/export-jobs/drain`:
+- Validates `{ outcome: "completed" | "failed" }` body → `400` if missing or invalid
+- Calls `drainExportQueue(outcome)` — no loop logic duplicated
+- Returns `200` with `{ processed, jobIds, outcome }` — including zero-work cases
+- No rendering, no artifacts, no background daemon
+
+**`apps/web/src/server/api/editorExportJobDrainRoute.test.ts`** (new, 24 cases across 6 suites) — focused route-contract tests using isolated in-memory SQLite DBs:
+- **Empty queue (zero-work 200)**: `processed: 0`, empty `jobIds`, correct `outcome`, exact 3-field shape
+- **Single job drain**: count, id in `jobIds`, both outcomes persist correctly
+- **Multiple jobs in order**: count, `createdAt ASC` order, all rows at terminal status
+- **Non-pending ignored**: running/completed/failed excluded; returns 0 when all pre-terminal
+- **Outcome validation (→ 400)**: empty string, unknown string, numeric rejected; both valid values accepted
+- **Repeated drain after exhaustion**: second and third calls all return `processed: 0` and empty `jobIds`
+
+207 lib + 277 server = 484 tests passing. TypeScript clean.
+
+Next recommended task: Introduce the first real BullMQ enqueue step so export-job creation can push job IDs into a queue without changing the persisted lifecycle model.
+
+---
+
+## Session Summary — Internal export worker loop skeleton (2026-03-25)
+
+Added `drainExportQueue` as a minimal internal worker-loop skeleton that repeatedly claims and finishes pending export jobs until the queue is empty, forming the closest pre-queue stand-in for a real worker.
+
+**`apps/web/src/server/api/editorExportJobs.ts`** (updated) — added `drainExportQueue(outcome, db?)`:
+- Loops: `claimNextPendingExportJob` → `finishExportJob` → repeat until `null`
+- Returns `DrainExportQueueResult`: `{ processed, jobIds, outcome }`
+  - `processed` — count of jobs driven to terminal status
+  - `jobIds` — IDs in claim order (oldest-first, deterministic)
+  - `outcome` — terminal status applied to every processed job
+- Synchronous, no renderer, no artifacts, no retries, no delays
+
+**`apps/web/src/server/api/editorExportJobDrainQueue.test.ts`** (new, 22 cases across 5 suites) — focused helper tests using isolated in-memory SQLite DBs:
+- **Empty queue**: `processed: 0`, empty `jobIds`, correct `outcome` field, exact summary shape
+- **Single pending job**: `processed: 1`, id in `jobIds`, terminal status persisted for both outcomes; second call is no-op
+- **Multiple pending jobs**: correct count, `createdAt ASC` order, all rows persist correct status, `jobIds.length === processed`, second call is no-op
+- **Non-pending ignored**: running/completed/failed each excluded from count and `jobIds`; returns 0 when all non-pending
+- **Summary accuracy**: every `jobId` confirms terminal status in DB; no duplicate IDs; count excludes pre-terminal rows
+
+207 lib + 253 server = 460 tests passing. TypeScript clean.
+
+Next recommended task: Add a minimal internal route that invokes the worker-loop skeleton for full queue-drain simulation before introducing BullMQ.
+
+---
+
+## Session Summary — Internal claim and execute next job route (2026-03-25)
+
+Added a minimal internal route that composes the existing atomic claim and finish helpers into the first end-to-end worker simulation boundary — claim the next pending job and drive it to a terminal status in one call.
+
+**`apps/web/src/app/api/export-jobs/claim-and-execute-next/route.ts`** (new) — `POST /api/export-jobs/claim-and-execute-next`:
+- Validates `{ outcome: "completed" | "failed" }` body → `400` if missing or invalid
+- Calls `claimNextPendingExportJob()` → `404` if no pending job
+- Calls `finishExportJob(claimed.id, outcome)` → `409` on transition rejection
+- Returns `200` with narrow public shape (`id`, `projectId`, `status`, `totalDurationMs`, `sceneCount`, `createdAt`, `updatedAt`)
+- No rendering, no artifacts, no retries, no worker loop
+
+**`apps/web/src/server/api/editorExportJobClaimAndExecuteNextRoute.test.ts`** (new, 25 cases across 6 suites) — focused route-contract tests using isolated in-memory SQLite DBs:
+- **Outcome 'completed'**: status `completed`, persisted correctly, id matches, values match DB row
+- **Outcome 'failed'**: status `failed`, persisted correctly, id matches
+- **No pending job (→ 404 path)**: empty DB, running-only, completed-only, failed-only
+- **Outcome validation (→ 400 path)**: empty string, unknown string, missing field rejected; both valid outcomes accepted
+- **Non-pending ignored**: running, completed, and failed jobs each skipped; pending job executed correctly
+- **Drain order**: three jobs executed in `createdAt ASC` order; null after exhausted; mixed outcomes all reach terminal status
+- **Response shape**: exactly 7 public fields, payload absent, shape identical for both outcomes
+
+207 lib + 231 server = 438 tests passing. TypeScript clean.
+
+Next recommended task: Add a minimal worker-loop skeleton that repeatedly calls the existing internal claim-and-execute-next path until no pending jobs remain.
+
+---
+
+## Session Summary — Internal atomic next-job claim route (2026-03-25)
+
+Added a minimal internal route that exposes the atomic select-and-claim helper through an explicit backend surface, forming the first exercisable queue-consumer boundary.
+
+**`apps/web/src/app/api/export-jobs/claim-next/route.ts`** (new) — `POST /api/export-jobs/claim-next`:
+- Calls `claimNextPendingExportJob()` — atomic select + claim in one transaction
+- Returns `200` with narrow public shape (`id`, `projectId`, `status`, `totalDurationMs`, `sceneCount`, `createdAt`, `updatedAt`) when a job is claimed (status `running`)
+- Returns `404` with `{ error: "NOT_FOUND" }` when no pending job exists
+- Does not execute or finish the claimed job — acquisition and processing remain separate
+- Payload and renderer-facing fields intentionally omitted
+
+**`apps/web/src/server/api/editorExportJobClaimNextRoute.test.ts`** (new, 18 cases across 6 suites) — focused route-contract tests using isolated in-memory SQLite DBs:
+- **No pending job (→ 404 path)**: empty DB, running-only, completed-only, failed-only
+- **Pending job claimed (→ 200 path)**: non-null return, status `running`, id matches inserted job
+- **Claimed job persisted as running**: status in DB, updatedAt advances, non-status fields unchanged
+- **Non-pending ignored**: running, completed, and failed jobs each skipped; pending claimed correctly
+- **Repeated calls drain in order**: three jobs claimed in createdAt ASC order; null after exhausted
+- **Response shape**: exactly 7 public fields, payload absent, values match persisted row
+
+207 lib + 206 server = 413 tests passing. TypeScript clean.
+
+Next recommended task: Add a minimal internal route that claims the next pending job and then executes it through the existing execution helper as the first end-to-end worker simulation boundary.
+
+---
+
+## Session Summary — Atomic select and claim helper (2026-03-25)
+
+Added `claimNextPendingExportJob` as the first true queue-consumer boundary: an atomic helper that selects and claims the next pending export job in a single database transaction.
+
+**`apps/web/src/server/api/editorExportJobs.ts`** (updated) — added `claimNextPendingExportJob(db?)`:
+- Wraps `getNextPendingExportJob` + `claimExportJob` in `db.transaction()`
+- Selection and claim are atomic — no concurrent caller can claim the same job between SELECT and UPDATE
+- Returns the claimed `EditorExportJob` (status `running`) or `null` when no pending job exists
+- `as unknown as Db` cast threads the transaction context through the existing helpers without duplicating logic
+- No queue abstraction, no locking framework, no retries — pure SQLite transaction
+
+**`apps/web/src/server/api/editorExportJobClaimNext.test.ts`** (new, 24 cases across 5 suites) — focused helper tests using isolated in-memory SQLite DBs:
+- **Null cases**: empty DB, running-only, completed-only, failed-only, all non-pending — all return null
+- **Claim basics**: non-null return, status `running`, id/projectId/totalDurationMs/sceneCount/createdAt all correct
+- **Persisted state**: status `running` in DB, `updatedAt` advances, non-status fields unchanged
+- **Ordering**: earlier `createdAt` claimed first; consecutive calls drain queue in order; null after all claimed
+- **Non-pending skipped**: running, completed, and failed jobs each individually ignored
+- **Atomicity**: two consecutive calls claim distinct jobs; both persist as `running`; third call returns null
+
+207 lib + 188 server = 395 tests passing. TypeScript clean.
+
+Next recommended task: Add an internal route that invokes the select-and-claim helper to simulate a worker fetching work.
+
+---
+
+## Session Summary — Internal next pending export job route (2026-03-25)
+
+Added a minimal internal read-only route that exposes the next pending export job, so the queue-ready selection boundary can be exercised through an explicit backend surface.
+
+**`apps/web/src/app/api/export-jobs/next-pending/route.ts`** (new) — `GET /api/export-jobs/next-pending`:
+- Calls `getNextPendingExportJob()` — no claim, no mutation, no side effects
+- Returns `200` with narrow public shape (`id`, `projectId`, `status`, `totalDurationMs`, `sceneCount`, `createdAt`, `updatedAt`) when a pending job exists
+- Returns `404` with `{ error: "NOT_FOUND" }` when no pending job exists
+- Payload and renderer-facing fields intentionally omitted
+
+**`apps/web/src/server/api/editorExportJobNextPendingRoute.test.ts`** (new, 19 cases across 5 suites) — focused route-contract tests using isolated in-memory SQLite DBs:
+- **No pending job (→ 404 path)**: empty DB, running-only, completed-only, failed-only — all return null
+- **Pending job found (→ 200 path)**: single pending job returned; projectId, totalDurationMs, sceneCount match inserted values
+- **Mixed statuses**: pending returned when running, completed, or failed jobs also exist; null when all non-pending
+- **Ordering**: oldest createdAt returned first (explicit timestamp insertion)
+- **Non-mutation**: status and updatedAt unchanged after read; repeated reads return the same job
+- **Response shape**: exactly 7 public fields, payload absent, values match persisted row
+
+207 lib + 164 server = 371 tests passing. TypeScript clean.
+
+Next recommended task: Add a minimal internal route that atomically selects and claims the next pending export job to form the first queue-consumer boundary.
+
+---
+
+## Session Summary — Next pending export job selection helper (2026-03-25)
+
+Added `getNextPendingExportJob` as the first queue-ready selection primitive, enabling workers to discover the oldest pending job without claiming or mutating it.
+
+**`apps/web/src/server/api/editorExportJobs.ts`** (updated) — added `getNextPendingExportJob(db?)`:
+- Selects `WHERE status = 'pending' ORDER BY createdAt ASC, id ASC LIMIT 1`
+- Returns the full internal `EditorExportJob` row or `null` when none exists
+- Read-only: no status change, no claim, no side effects
+- Stable deterministic ordering: `createdAt ASC` primary, `id ASC` tie-breaker
+
+**`apps/web/src/server/api/editorExportJobNextPending.test.ts`** (new, 15 cases across 4 suites) — focused selection tests using isolated in-memory SQLite DBs:
+- **Null cases**: empty DB, all-running, all-completed, all-failed — all return null
+- **Selection correctness**: single pending job returned, pending job selected when mixed with running; running/completed/failed jobs each individually ignored
+- **Ordering**: earliest `createdAt` returned first; shifts to second after first is claimed; null after both claimed (uses manual row insertion with explicit timestamps)
+- **Non-mutation**: status unchanged after selection, `updatedAt` unchanged, consecutive selections return the same job
+
+207 lib + 145 server = 352 tests passing. TypeScript clean.
+
+Next recommended task: Add an internal route for inspecting the next pending export job so the queue-ready boundary can be exercised through an explicit backend surface.
+
+---
+
+## Session Summary — Internal export execution route (2026-03-25)
+
+Exposed the `executeExportJob` driver through a minimal internal route, completing the backend boundary that future workers can replace with real rendering.
+
+**`apps/web/src/app/api/export-jobs/[jobId]/execute/route.ts`** (new) — `POST /api/export-jobs/[jobId]/execute`:
+- Body: `{ outcome: "completed" | "failed" }` — uses status vocabulary (vs `/simulate` which uses `"success"/"failure"`)
+- 400 on missing/invalid body or unrecognised outcome
+- 404 when job is not found (detected from throw message)
+- 409 when transition is rejected (already claimed or terminal)
+- 200 with the same 7-field public shape as all other job endpoints
+- Delegates entirely to `executeExportJob` — no duplicated claim/finish logic
+
+**`apps/web/src/server/api/editorExportJobExecuteRoute.test.ts`** (new, 12 cases across 4 suites) — tests call `executeExportJob` directly with an in-memory DB:
+- **Outcome completed**: status, persisted, response values match persisted row
+- **Outcome failed**: status, persisted
+- **Error paths**: not found (→404), already-running (→409), already-completed (→409), already-failed (→409) — all throw matching patterns
+- **Response shape**: exactly 7 keys, `payload` absent, identical shape for both outcomes
+
+207 lib + 130 server = 337 tests passing. TypeScript clean.
+
+Next recommended task: Add the first queue-ready selection primitive for locating the next pending export job without executing it.
+
+---
+
+## Session Summary — Minimal internal export execution driver (2026-03-25)
+
+Added `executeExportJob` as the first worker-shaped execution path, composing the two worker-facing primitives into one atomic in-process call without real rendering or queue infrastructure.
+
+**`apps/web/src/server/api/editorExportJobs.ts`** (updated) — added `executeExportJob(id, outcome, db?)`:
+- Step 1: `claimExportJob(id, db)` — pending → running
+- Step 2: `finishExportJob(id, outcome, db)` — running → completed | failed
+- No duplicated transition logic — all guards inherited from the underlying helpers
+- Uses `"completed" | "failed"` (aligned with `ExportJobStatus`) rather than `"success" | "failure"` (the HTTP-friendly simulation vocabulary)
+- Distinct from `simulateExportJob` which calls raw transition helpers; this driver composes the named worker primitives
+
+**`apps/web/src/server/api/editorExportJobExecute.test.ts`** (new, 16 cases across 4 suites) — focused execution-driver tests using in-memory SQLite:
+- **Execute to completed**: status, persisted, non-status fields, createdAt, updatedAt
+- **Execute to failed**: status, persisted, non-status fields, createdAt
+- **Error cases**: non-existent job, already-running (already claimed), already-completed, already-failed — all throw with matching error messages
+- **Row integrity after failed execution**: status unchanged after failed re-execution on running/completed; driver composition verified (pending → completed with no manual steps)
+
+207 lib + 118 server = 325 tests passing. TypeScript clean.
+
+Next recommended task: Add a minimal internal route that invokes the execution driver so the full job path can be exercised through one explicit backend boundary.
+
+---
+
+## Session Summary — Internal finish helper for claimed export jobs (2026-03-25)
+
+Added `finishExportJob` as the symmetric counterpart to `claimExportJob`, completing the worker-facing start-to-finish contract without introducing queue or renderer infrastructure.
+
+**`apps/web/src/server/api/editorExportJobs.ts`** (updated) — added `finishExportJob(id, outcome, db?)`:
+- `"completed"` → delegates to `markExportJobCompleted`; `"failed"` → delegates to `markExportJobFailed`
+- No duplicated transition rules — all guards inherited from `transitionJob`
+- Requires the job to be `running`; throws on pending, terminal, or missing
+
+**`apps/web/src/server/api/editorExportJobFinish.test.ts`** (new, 16 cases across 4 suites) — focused worker-perspective tests using in-memory SQLite:
+- **Finish as completed**: status, persisted, non-status fields, createdAt, updatedAt
+- **Finish as failed**: status, persisted, non-status fields, createdAt
+- **Error cases**: non-existent job, pending (not yet claimed), already-completed, already-failed, completing a failed job — all throw with matching error messages
+- **Row immutability after failed finish**: status unchanged on pending rejection; `updatedAt` unchanged after rejected repeat on a completed job
+
+207 lib + 102 server = 309 tests passing. TypeScript clean.
+
+Next recommended task: Add a minimal internal driver that performs claim + finish in one explicit path to serve as the first worker-execution skeleton.
+
+---
+
+## Session Summary — Worker-facing export job claim/start helper (2026-03-25)
+
+Added `claimExportJob` as the single worker-facing entry point for starting an export job, completing the lifecycle model's execution-side primitive without introducing queue or renderer infrastructure.
+
+**`apps/web/src/server/api/editorExportJobs.ts`** (updated) — added `claimExportJob(id, db?)`:
+- Delegates directly to `markExportJobRunning` — no duplicated transition rules
+- Semantically distinct: named for the worker's perspective, documented as the sanctioned claim entry point
+- Throws on non-existent job, already-running job (already claimed), or terminal job (`completed`/`failed`) — all via the existing transition guard
+
+**`apps/web/src/server/api/editorExportJobClaim.test.ts`** (new, 12 cases across 3 suites) — focused worker-perspective tests using in-memory SQLite:
+- **Happy path**: returned status is `"running"`, persisted and confirmed, non-status fields unchanged, `createdAt` stable, `updatedAt` is valid ISO timestamp
+- **Error cases**: non-existent job, already-running, completed, and failed — all throw matching error messages
+- **Row immutability after failed claim**: status and `updatedAt` unchanged after a second claim on a running job; no spurious row created for a non-existent ID
+
+207 lib + 86 server = 293 tests passing. TypeScript clean.
+
+Next recommended task: Add a minimal internal completion/failure driver that consumes a claimed running job and finishes it through the existing status helpers.
+
+---
+
+## Session Summary — Internal export job lifecycle simulation (2026-03-25)
+
+Added a minimal internal simulation route and helper that exercises the full export-job lifecycle in one synchronous call, validating the transition chain end-to-end without real rendering.
+
+**`apps/web/src/server/api/editorExportJobs.ts`** (updated) — added `simulateExportJob(id, outcome, db?)`:
+- `"success"` → calls `markExportJobRunning` then `markExportJobCompleted` (pending → running → completed)
+- `"failure"` → calls `markExportJobRunning` then `markExportJobFailed` (pending → running → failed)
+- Throws via the underlying helpers if job not found or already transitioned
+
+**`apps/web/src/app/api/export-jobs/[jobId]/simulate/route.ts`** (new) — `POST /api/export-jobs/[jobId]/simulate`:
+- Body: `{ outcome: "success" | "failure" }` — validated before calling the helper
+- 400 on missing/invalid body or unrecognised outcome
+- 404 when job is not found (detected from throw message)
+- 409 when a transition is rejected (job already transitioned)
+- 200 with the same 7-field public shape as the read endpoint on success
+- Strictly synchronous, no queue/renderer/artifact work
+
+**`apps/web/src/server/api/editorExportJobSimulate.test.ts`** (new, 16 cases across 4 suites) — tests call `simulateExportJob` directly with an in-memory DB:
+- **Success path**: status `"completed"`, persisted, createdAt unchanged, updatedAt valid, all non-status fields preserved
+- **Failure path**: status `"failed"`, persisted, createdAt unchanged, non-status fields preserved
+- **Error cases**: non-existent job throws, repeated success throws, repeated failure throws, simulating a completed job throws — all match `/invalid export job transition/` or `/export job not found/`
+- **Public response shape**: exactly 7 keys, `payload` absent, same shape for both outcomes
+
+207 lib + 74 server = 281 tests passing. TypeScript clean.
+
+Next recommended task: Add a worker-facing claim/start mechanism for pending export jobs once the simulation route confirms the lifecycle wiring is sound.
+
+---
+
+## Session Summary — Export job status transition helpers (2026-03-25)
+
+Extended the export-job DAL with minimal status transition helpers that let future workers advance jobs through their lifecycle without introducing execution infrastructure.
+
+**`apps/web/src/server/api/editorExportJobs.ts`** (updated):
+- `ExportJobStatus` expanded from `"pending"` to `"pending" | "running" | "completed" | "failed"`
+- `ALLOWED_FROM` map — explicit allowed predecessor set per target status; `pending` has no predecessors (creation only), `running` requires `pending`, `completed`/`failed` require `running`
+- `transitionJob(id, to, db?)` (private) — fetches the current row, validates the transition against `ALLOWED_FROM`, updates `status` + `updatedAt`, returns the updated record; throws with a descriptive message on invalid transition or missing job
+- `markExportJobRunning(id, db?)` — `pending → running`
+- `markExportJobCompleted(id, db?)` — `running → completed`
+- `markExportJobFailed(id, db?)` — `running → failed`
+
+**`apps/web/src/server/api/editorExportJobTransitions.test.ts`** (new, 20 cases across 5 suites) — focused transition tests using in-memory SQLite:
+- **pending → running**: returns updated job, persists status, valid updatedAt, createdAt unchanged, other fields preserved
+- **running → completed**: returns updated job, persists status, createdAt unchanged through full path
+- **running → failed**: returns updated job, persists status, createdAt unchanged through full path
+- **Invalid transitions throw clearly**: pending→completed, pending→failed, completed→running, failed→running, completed→completed, running→running, non-existent job — all throw with matching error messages
+- **Invalid transitions do not mutate the row**: status and updatedAt unchanged after rejected attempt
+
+207 lib + 58 server = 265 tests passing. TypeScript clean.
+
+Next recommended task: Add a minimal internal route or worker-facing entry point that uses these helpers to simulate job progression without performing real rendering.
+
+---
+
+## Session Summary — Single export-job read endpoint (2026-03-25)
+
+Added a minimal read-only endpoint that exposes persisted export jobs by ID, establishing the stable status surface that future queue and renderer layers will update against.
+
+**`apps/web/src/app/api/export-jobs/[jobId]/route.ts`** (new) — `GET /api/export-jobs/[jobId]`:
+- Calls `getEditorExportJob(jobId)` from the existing DAL
+- Returns 404 `{ error: "NOT_FOUND" }` when the job does not exist
+- Returns 200 with the public job shape on success: `id`, `projectId`, `status`, `totalDurationMs`, `sceneCount`, `createdAt`, `updatedAt`
+- `payload` (full renderer scene list) is intentionally omitted — consumers need status and summary, not the raw payload
+- Strictly read-only: no mutations, no status transitions, no queue checks
+
+**`apps/web/src/server/api/editorExportJobRead.test.ts`** (new, 16 cases across 4 suites) — focused read-endpoint contract tests using in-memory SQLite:
+- **Existing job → successful response**: non-null result, correct id/projectId/status/totalDurationMs/sceneCount, valid ISO timestamps
+- **Missing job → not found**: DAL returns null, `buildReadResponse(null)` returns null (maps to 404 in route)
+- **Response shape — intended public fields only**: exactly 7 keys, `payload` absent, `scenes` absent, `status` present as future-worker anchor
+- **Response values align with persisted row**: all 7 fields match `createEditorExportJob` output; distinct jobs produce distinct IDs
+
+207 lib + 38 server = 245 tests passing. TypeScript clean.
+
+Next recommended task: Add minimal status transition helpers for export jobs so a future worker can mark jobs running, completed, or failed without reshaping the API.
+
+---
+
+## Session Summary — Persisted export job records (2026-03-25)
+
+Replaced the placeholder `jobId: "stub-export"` with a durable DB-backed export job record, making the export endpoint a real persistent boundary without introducing rendering or queue complexity.
+
+**`packages/db/src/schema.ts`** (updated) — added `editorExportJobs` table:
+- `id` (PK, UUID), `projectId` (text, indexed), `status` (text, default `"pending"`), `payload` (JSON: `ExportJobPayload`), `totalDurationMs` (integer), `sceneCount` (integer), `createdAt`, `updatedAt`
+- Index `idx_editor_export_jobs_project_id` on `projectId` for future list queries
+
+**`packages/db/src/migrations/0008_editor_export_jobs.sql`** (new) — SQL migration for the new table; applied automatically on next DB initialization via the existing `migrate()` call.
+
+**`apps/web/src/server/api/editorExportJobs.ts`** (new) — data access layer:
+- `EditorExportJob` interface and `ExportJobStatus = "pending"` type
+- `createEditorExportJob(input, db?)` — inserts a new `pending` row, returns the full record; `db` param defaults to production DB, accepts an injected test DB
+- `getEditorExportJob(id, db?)` — fetches by ID, returns null on miss
+- Payload is stored as JSON and rehydrated as `ExportJobPayload` on read
+
+**`apps/web/src/app/api/editor-projects/[id]/export/route.ts`** (updated) — after payload validation, calls `createEditorExportJob` and returns `jobId: job.id` (a real UUID) instead of the static placeholder.
+
+**`apps/web/src/server/api/editorExportJobs.test.ts`** (new, 17 cases across 4 suites) — focused persistence tests using an in-memory SQLite DB (no file I/O):
+- **Returned record**: UUID jobId (not placeholder), projectId, status "pending", totalDurationMs, sceneCount, payload unchanged, ISO timestamp, createdAt = updatedAt
+- **Retrieval**: exact row round-trip, payload JSON fidelity, null for unknown ID, distinct IDs for separate jobs
+- **Payload metadata integrity**: all scene fields verbatim, text overlay, summary fields, aspectRatio
+- **Response value alignment**: jobId/totalDurationMs/sceneCount returned by create match what the route returns in the 202 body
+
+207 lib tests + 22 server tests = 229 tests passing. TypeScript clean.
+
+Next recommended task: Add a read endpoint for a single export job so future execution layers can expose status without changing the job model.
+
+---
+
+## Session Summary — Export endpoint stub and contract validation (2026-03-25)
+
+Completed the server-side boundary for export by updating the stub response shape and adding focused endpoint contract tests.
+
+**`apps/web/src/app/api/editor-projects/[id]/export/route.ts`** (updated) — stub response now returns the minimal accepted summary instead of echoing the full payload:
+- `status: "accepted"` — contract signal
+- `jobId: "stub-export"` — static placeholder until job persistence is wired
+- `totalDurationMs` — forwarded from validated payload
+- `sceneCount` — count of scenes from validated payload
+
+Validation path unchanged: `ExportJobPayloadSchema.safeParse` gates the response; a schema failure (builder bug) returns 500, empty-scenes project returns 422, unknown project returns 404.
+
+**`apps/web/src/lib/exportEndpoint.test.ts`** (new, 30 cases across 5 suites) — focused tests for the export endpoint contract exercising the full scenes → RenderPlan → ExportJobPayload → schema validation → stub response pipeline, without DB or HTTP involvement:
+- **Valid payload → accepted response**: schema passes, response fields (`status`, `jobId`, `totalDurationMs`, `sceneCount`) correct, exactly 4 keys in body
+- **Invalid payload → validation error**: empty scenes, unknown aspectRatio, zero duration, empty src, unknown transition, missing projectId — all rejected
+- **Scene ordering and duration integrity**: order preserved, 0-based index, `endMs = startMs + durationMs`, contiguous layout, `totalDurationMs = sum of durations`, `sceneCount` consistent
+- **naturalDurationMs absent**: confirmed absent from both image and video `ExportSceneEntry` (UI-only field)
+- **No unexpected required fields**: all aspect ratio variants accepted, single scene accepted, fade scene accepted, overlay accepted, null overlay accepted
+
+207 lib tests passing. TypeScript typecheck clean.
+
+Next recommended task: Introduce a lightweight job record model (without queue execution) to persist export requests for future processing.
 
 ---
 

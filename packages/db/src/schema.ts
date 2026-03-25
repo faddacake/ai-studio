@@ -177,3 +177,19 @@ export const editorProjects = sqliteTable(
   },
   (table) => [index("idx_editor_projects_created_at").on(table.createdAt)],
 );
+
+export const editorExportJobs = sqliteTable(
+  "editor_export_jobs",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").notNull(),
+    status: text("status").notNull().default("pending"), // pending | running | completed | failed
+    payload: text("payload").notNull(), // JSON: ExportJobPayload
+    totalDurationMs: integer("total_duration_ms").notNull(),
+    sceneCount: integer("scene_count").notNull(),
+    renderResult: text("render_result"), // JSON: PersistedRenderResult | null
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [index("idx_editor_export_jobs_project_id").on(table.projectId)],
+);

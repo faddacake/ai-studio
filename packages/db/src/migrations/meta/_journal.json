@@ -57,6 +57,20 @@
       "when": 1772000000000,
       "tag": "0007_editor_projects",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1772100000000,
+      "tag": "0008_editor_export_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1772200000000,
+      "tag": "0009_editor_export_jobs_render_result",
+      "breakpoints": true
     }
   ]
 }

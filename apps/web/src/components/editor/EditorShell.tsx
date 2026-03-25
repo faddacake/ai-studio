@@ -12,6 +12,7 @@ import { PreviewPlayer } from "./PreviewPlayer";
 import { SceneInspector } from "./SceneInspector";
 import { ArtifactPickerModal } from "./ArtifactPickerModal";
 import type { SaveState } from "./EditorToolbar";
+import { useExportJob } from "@/hooks/useExportJob";
 
 interface EditorShellProps {
   project: EditorProject;
@@ -27,6 +28,7 @@ export function EditorShell({ project }: EditorShellProps) {
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [isDirty, setIsDirty] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const { state: exportState, jobStatus: exportJobStatus, error: exportError, trigger: triggerExport, reset: resetExport } = useExportJob(project.id);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playIndex, setPlayIndex] = useState(0);
   const [seekOffsetMs, setSeekOffsetMs] = useState(0); // intra-scene offset set by seek; 0 on normal play/advance
@@ -367,6 +369,11 @@ export function EditorShell({ project }: EditorShellProps) {
         }}
         onAspectRatioChange={handleAspectRatioChange}
         onSave={handleSave}
+        exportState={exportState}
+        exportJobStatus={exportJobStatus}
+        exportError={exportError}
+        onExport={triggerExport}
+        onExportReset={resetExport}
       />
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>

@@ -3,6 +3,9 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import type { AspectRatio } from "@/lib/editorProjectTypes";
+import { ExportStatusPanel } from "./ExportStatusPanel";
+import type { ExportJobStatusResponse } from "@/lib/exportJobStatus";
+import type { ExportJobHookState } from "@/hooks/useExportJob";
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -15,6 +18,12 @@ interface EditorToolbarProps {
   onNameChange: (name: string) => void;
   onAspectRatioChange: (ar: AspectRatio) => void;
   onSave: () => void;
+  // ── Export status ──────────────────────────────────────────────────────────
+  exportState: ExportJobHookState;
+  exportJobStatus: ExportJobStatusResponse | null;
+  exportError: string | null;
+  onExport: () => void;
+  onExportReset: () => void;
 }
 
 const ASPECT_RATIO_LABEL: Record<AspectRatio, string> = {
@@ -40,6 +49,11 @@ export function EditorToolbar({
   onNameChange,
   onAspectRatioChange,
   onSave,
+  exportState,
+  exportJobStatus,
+  exportError,
+  onExport,
+  onExportReset,
 }: EditorToolbarProps) {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(name);
@@ -165,6 +179,15 @@ export function EditorToolbar({
           </option>
         ))}
       </select>
+
+      {/* Export status panel */}
+      <ExportStatusPanel
+        state={exportState}
+        jobStatus={exportJobStatus}
+        error={exportError}
+        onExport={onExport}
+        onReset={onExportReset}
+      />
 
       {/* Save confirmation indicator — fades in on saved, fades out on idle */}
       <span

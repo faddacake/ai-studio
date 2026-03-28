@@ -1,33 +1,71 @@
 /**
  * Shared internal types for the export job execution pipeline.
  *
- * `PersistedRenderResult` is the stable boundary between the renderer adapter
- * and the rest of the system. It is the exact shape the runner normalises
- * adapter output into before carrying it forward (and eventually persisting).
- *
- * It is intentionally kept separate from `RenderResult` (the raw adapter
- * output) so that the renderer can evolve its own output contract without
- * changing what the system stores, and vice versa.
+ * Contains the renderer contract types (`RenderResult`, `ExportJobRenderer`)
+ * and the persisted contract type (`PersistedRenderResult`) so all layers can
+ * import from one location without circular dependencies.
  *
  * Server-side only — never import from client components.
  */
 
+import type { ExportJobPayload } from "@aistudio/shared";
+
+// ── Artifact reference ────────────────────────────────────────────────────────
+
+/**
+ * A reference to a single render output artifact.
+ *
+ * Pure reference contract — no storage, no DB linkage. `path` is the opaque
+ * route or file path at which the artifact will be available. When a real
+ * renderer is introduced it will populate this with a real storage path;
+ * until then the placeholder adapter returns a deterministic mock path.
+ */
+export interface ExportArtifactRef {
+  /** Route or file path at which the artifact is accessible. */
+  path: string;
+  /** MIME type of the artifact (e.g. "video/mp4"). */
+  mimeType: string;
+  /** Optional human-readable label for display. */
+  label?: string;
+}
+
+// ── Renderer contract ─────────────────────────────────────────────────────────
+
+/**
+ * The raw result produced by a renderer adapter before runner normalisation.
+ * Distinct from `PersistedRenderResult` so the renderer and stored contracts
+ * can evolve independently.
+ */
+export interface RenderResult {
+  /** Number of scenes rendered. */
+  sceneCount: number;
+  /** Total timeline duration in ms. */
+  totalDurationMs: number;
+  /** Artifact references produced by this render pass. */
+  artifacts: ExportArtifactRef[];
+}
+
+/**
+ * Named contract for any renderer adapter accepted by the runner.
+ *
+ * The placeholder, test spies, and future real renderers all satisfy this type.
+ */
+export type ExportJobRenderer = (payload: ExportJobPayload) => RenderResult;
+
 // ── Persisted render result ───────────────────────────────────────────────────
 
 /**
- * Minimal stable contract for the result of a completed render step.
+ * Stable stored contract for the result of a completed render step.
  *
- * Contains only the fields that are guaranteed by every renderer variant —
- * both the current placeholder and any future real renderer. Future additions
- * (e.g. output file metadata) must be made here explicitly, not inferred from
- * renderer-specific shapes.
- *
- * No file fields, no storage paths, no artifact URLs.
- * Those belong to a separate output/artifact layer added later.
+ * Contains only the fields that are guaranteed by every renderer variant.
+ * `artifacts` carries zero or more artifact references normalised by the
+ * runner; a real renderer will populate these with actual output paths.
  */
 export interface PersistedRenderResult {
   /** Number of scenes processed. Normalised from the adapter output. */
   sceneCount: number;
   /** Total timeline duration in ms. Normalised from the adapter output. */
   totalDurationMs: number;
+  /** Artifact references produced by the renderer. Empty for the placeholder. */
+  artifacts: ExportArtifactRef[];
 }

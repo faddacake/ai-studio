@@ -175,6 +175,16 @@ describe("export pipeline — create → runExportJob → GET response", () => {
     const res = buildJobResponse(jobId, db)!;
     assert.strictEqual(typeof res.renderResult!.totalDurationMs, "number");
   });
+
+  it("renderResult.artifacts is an array", () => {
+    const res = buildJobResponse(jobId, db)!;
+    assert.ok(Array.isArray(res.renderResult!.artifacts), "artifacts is an array");
+  });
+
+  it("renderResult.artifacts is non-empty after default adapter execution", () => {
+    const res = buildJobResponse(jobId, db)!;
+    assert.ok(res.renderResult!.artifacts.length > 0, "artifacts is non-empty");
+  });
 });
 
 // ── Response shape ────────────────────────────────────────────────────────────

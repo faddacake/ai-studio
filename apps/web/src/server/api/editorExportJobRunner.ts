@@ -12,9 +12,9 @@
 import { getDb } from "@aistudio/db";
 import type { ExportJobPayload } from "@aistudio/shared";
 import { ExportJobPayloadSchema } from "@aistudio/shared";
-import { renderExportJob, type RenderResult } from "./editorExportJobRenderer";
+import { getExportJobRenderer, type ExportJobRenderer, type RenderResult } from "./editorExportJobRenderer";
 import { executeExportJob, getEditorExportJob, setExportJobRenderResult } from "./editorExportJobs";
-import type { PersistedRenderResult } from "./editorExportJobTypes";
+import type { ExportArtifactRef, PersistedRenderResult } from "./editorExportJobTypes";
 
 export type { PersistedRenderResult };
 
@@ -58,7 +58,7 @@ export interface ExportRunnerResult {
 export function runExportJob(
   jobId: string,
   db?: Db,
-  render: (payload: ExportJobPayload) => RenderResult = renderExportJob,
+  render: ExportJobRenderer = getExportJobRenderer(),
 ): ExportRunnerResult {
   const _db = db ?? getDb();
 
@@ -84,9 +84,17 @@ export function runExportJob(
   //    Normalise the raw adapter output into the stable PersistedRenderResult
   //    contract immediately; nothing downstream sees RenderResult directly.
   const raw: RenderResult = render(parsed.data);
+
+  // Validate artifact refs: keep only entries that carry both path and mimeType.
+  const artifacts: ExportArtifactRef[] = (raw.artifacts ?? []).filter(
+    (a) => typeof a.path === "string" && a.path.length > 0 &&
+           typeof a.mimeType === "string" && a.mimeType.length > 0,
+  );
+
   const renderResult: PersistedRenderResult = {
     sceneCount: raw.sceneCount,
     totalDurationMs: raw.totalDurationMs,
+    artifacts,
   };
 
   // 4. Advance the lifecycle: pending → running → completed.

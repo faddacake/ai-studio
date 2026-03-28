@@ -18,9 +18,11 @@
 
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { schema } from "@aistudio/db";
+import { ARTIFACTS_DIR } from "../../lib/artifactStorage";
 
 import { createEditorExportJob, getEditorExportJob, setExportJobRenderResult, claimExportJob, markExportJobCompleted, markExportJobFailed } from "./editorExportJobs";
 import type { ExportJobPayload } from "@aistudio/shared";
@@ -260,7 +262,7 @@ describe("read endpoint — renderResult for completed job with persisted metada
     const job = createEditorExportJob({ projectId: "proj-rr-done", payload: makePayload() }, db);
     claimExportJob(job.id, db);
     markExportJobCompleted(job.id, db);
-    setExportJobRenderResult(job.id, { sceneCount: 2, totalDurationMs: 8000 }, db);
+    setExportJobRenderResult(job.id, { sceneCount: 2, totalDurationMs: 8000, artifacts: [] }, db);
     const res = buildReadResponse(getEditorExportJob(job.id, db))!;
     assert.ok(res.renderResult !== null, "renderResult should be non-null");
     assert.strictEqual(typeof res.renderResult, "object");
@@ -270,7 +272,7 @@ describe("read endpoint — renderResult for completed job with persisted metada
     const job = createEditorExportJob({ projectId: "proj-rr-sc", payload: makePayload() }, db);
     claimExportJob(job.id, db);
     markExportJobCompleted(job.id, db);
-    setExportJobRenderResult(job.id, { sceneCount: 2, totalDurationMs: 8000 }, db);
+    setExportJobRenderResult(job.id, { sceneCount: 2, totalDurationMs: 8000, artifacts: [] }, db);
     const res = buildReadResponse(getEditorExportJob(job.id, db))!;
     assert.equal(res.renderResult!.sceneCount, 2);
   });
@@ -279,7 +281,7 @@ describe("read endpoint — renderResult for completed job with persisted metada
     const job = createEditorExportJob({ projectId: "proj-rr-dur", payload: makePayload() }, db);
     claimExportJob(job.id, db);
     markExportJobCompleted(job.id, db);
-    setExportJobRenderResult(job.id, { sceneCount: 2, totalDurationMs: 8000 }, db);
+    setExportJobRenderResult(job.id, { sceneCount: 2, totalDurationMs: 8000, artifacts: [] }, db);
     const res = buildReadResponse(getEditorExportJob(job.id, db))!;
     assert.equal(res.renderResult!.totalDurationMs, 8000);
   });
@@ -288,7 +290,7 @@ describe("read endpoint — renderResult for completed job with persisted metada
     const job = createEditorExportJob({ projectId: "proj-rr-nostr", payload: makePayload() }, db);
     claimExportJob(job.id, db);
     markExportJobCompleted(job.id, db);
-    setExportJobRenderResult(job.id, { sceneCount: 2, totalDurationMs: 8000 }, db);
+    setExportJobRenderResult(job.id, { sceneCount: 2, totalDurationMs: 8000, artifacts: [] }, db);
     const res = buildReadResponse(getEditorExportJob(job.id, db))!;
     assert.strictEqual(typeof res.renderResult, "object");
     assert.notStrictEqual(typeof res.renderResult, "string");
@@ -298,8 +300,99 @@ describe("read endpoint — renderResult for completed job with persisted metada
     const job = createEditorExportJob({ projectId: "proj-rr-col", payload: makePayload() }, db);
     claimExportJob(job.id, db);
     markExportJobCompleted(job.id, db);
-    setExportJobRenderResult(job.id, { sceneCount: 2, totalDurationMs: 8000 }, db);
+    setExportJobRenderResult(job.id, { sceneCount: 2, totalDurationMs: 8000, artifacts: [] }, db);
     const res = buildReadResponse(getEditorExportJob(job.id, db))! as Record<string, unknown>;
     assert.ok(!("render_result" in res), "raw column name must not appear in response");
+  });
+});
+
+// ── renderResult with persisted artifact reference ────────────────────────────
+
+describe("read endpoint — renderResult with persisted artifact reference", () => {
+  // Fixture: a realistic ARTIFACTS_DIR-rooted artifact reference.
+  const FIXTURE_PROJECT_ID = "proj-rr-artifact";
+  const fixtureArtifact = {
+    path: path.join(ARTIFACTS_DIR, FIXTURE_PROJECT_ID, "export.mp4"),
+    mimeType: "video/mp4",
+    label: "Exported Video",
+  };
+  const fixtureRenderResult = {
+    sceneCount: 2,
+    totalDurationMs: 8000,
+    artifacts: [fixtureArtifact],
+  };
+
+  it("artifacts array is non-empty in completed job response", () => {
+    const job = createEditorExportJob({ projectId: FIXTURE_PROJECT_ID, payload: makePayload() }, db);
+    claimExportJob(job.id, db);
+    markExportJobCompleted(job.id, db);
+    setExportJobRenderResult(job.id, fixtureRenderResult, db);
+    const res = buildReadResponse(getEditorExportJob(job.id, db))!;
+    assert.ok(Array.isArray(res.renderResult!.artifacts), "artifacts is an array");
+    assert.equal(res.renderResult!.artifacts.length, 1, "one artifact present");
+  });
+
+  it("artifact path survives response round-trip intact", () => {
+    const job = createEditorExportJob({ projectId: "proj-art-path", payload: makePayload() }, db);
+    const artifactPath = path.join(ARTIFACTS_DIR, "proj-art-path", "export.mp4");
+    claimExportJob(job.id, db);
+    markExportJobCompleted(job.id, db);
+    setExportJobRenderResult(job.id, { sceneCount: 2, totalDurationMs: 8000, artifacts: [{ path: artifactPath, mimeType: "video/mp4", label: "Exported Video" }] }, db);
+    const res = buildReadResponse(getEditorExportJob(job.id, db))!;
+    assert.equal(res.renderResult!.artifacts[0].path, artifactPath);
+  });
+
+  it("artifact path in response is absolute", () => {
+    const job = createEditorExportJob({ projectId: "proj-art-abs", payload: makePayload() }, db);
+    claimExportJob(job.id, db);
+    markExportJobCompleted(job.id, db);
+    setExportJobRenderResult(job.id, fixtureRenderResult, db);
+    const res = buildReadResponse(getEditorExportJob(job.id, db))!;
+    assert.ok(path.isAbsolute(res.renderResult!.artifacts[0].path), "artifact path is absolute");
+  });
+
+  it("artifact path in response is under ARTIFACTS_DIR", () => {
+    const job = createEditorExportJob({ projectId: "proj-art-dir", payload: makePayload() }, db);
+    claimExportJob(job.id, db);
+    markExportJobCompleted(job.id, db);
+    setExportJobRenderResult(job.id, fixtureRenderResult, db);
+    const res = buildReadResponse(getEditorExportJob(job.id, db))!;
+    assert.ok(
+      res.renderResult!.artifacts[0].path.startsWith(ARTIFACTS_DIR),
+      "artifact path is under ARTIFACTS_DIR",
+    );
+  });
+
+  it("artifact mimeType survives response round-trip intact", () => {
+    const job = createEditorExportJob({ projectId: "proj-art-mime", payload: makePayload() }, db);
+    claimExportJob(job.id, db);
+    markExportJobCompleted(job.id, db);
+    setExportJobRenderResult(job.id, fixtureRenderResult, db);
+    const res = buildReadResponse(getEditorExportJob(job.id, db))!;
+    assert.equal(res.renderResult!.artifacts[0].mimeType, "video/mp4");
+  });
+
+  it("artifact label survives response round-trip intact", () => {
+    const job = createEditorExportJob({ projectId: "proj-art-label", payload: makePayload() }, db);
+    claimExportJob(job.id, db);
+    markExportJobCompleted(job.id, db);
+    setExportJobRenderResult(job.id, fixtureRenderResult, db);
+    const res = buildReadResponse(getEditorExportJob(job.id, db))!;
+    assert.equal(res.renderResult!.artifacts[0].label, "Exported Video");
+  });
+
+  it("multiple artifacts all survive response round-trip intact", () => {
+    const job = createEditorExportJob({ projectId: "proj-art-multi", payload: makePayload() }, db);
+    const twoArtifacts = [
+      { path: path.join(ARTIFACTS_DIR, "proj-art-multi", "export.mp4"), mimeType: "video/mp4", label: "Clip A" },
+      { path: path.join(ARTIFACTS_DIR, "proj-art-multi", "preview.mp4"), mimeType: "video/mp4", label: "Clip B" },
+    ];
+    claimExportJob(job.id, db);
+    markExportJobCompleted(job.id, db);
+    setExportJobRenderResult(job.id, { sceneCount: 2, totalDurationMs: 8000, artifacts: twoArtifacts }, db);
+    const res = buildReadResponse(getEditorExportJob(job.id, db))!;
+    assert.equal(res.renderResult!.artifacts.length, 2);
+    assert.equal(res.renderResult!.artifacts[0].label, "Clip A");
+    assert.equal(res.renderResult!.artifacts[1].label, "Clip B");
   });
 });

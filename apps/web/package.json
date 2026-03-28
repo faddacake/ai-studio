@@ -12,6 +12,8 @@
     "test:a11y": "node --import tsx --test 'a11y/*.a11y.test.ts'",
     "test:a11y:browser": "playwright test",
     "test:store": "node --import tsx --test 'src/stores/*.test.ts'",
+    "test:components": "TSX_TSCONFIG_PATH=tsconfig.test.json node --import tsx --test 'src/components/**/*.test.ts'",
+    "test:hooks": "node --import tsx --test 'src/hooks/*.test.ts'",
     "test:lib": "node --import tsx --test 'src/lib/*.test.ts'",
     "test:server": "node --import tsx --test 'src/server/**/*.test.ts'",
     "test:integration": "node --import tsx --test 'src/app/api/**/*.integration.test.ts'",

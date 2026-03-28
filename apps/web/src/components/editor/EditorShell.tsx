@@ -11,8 +11,10 @@ import { SceneList } from "./SceneList";
 import { PreviewPlayer } from "./PreviewPlayer";
 import { SceneInspector } from "./SceneInspector";
 import { ArtifactPickerModal } from "./ArtifactPickerModal";
+import { ArtifactPreviewPanel } from "@/components/prompt/ArtifactPreviewPanel";
 import type { SaveState } from "./EditorToolbar";
 import { useExportJob } from "@/hooks/useExportJob";
+import { hasRenderResult, toArtifactPreviewable } from "@/lib/exportJobStatus";
 
 interface EditorShellProps {
   project: EditorProject;
@@ -345,6 +347,35 @@ export function EditorShell({ project }: EditorShellProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [saveState, handleSave]);
 
+  // ── Cmd/Ctrl+E shortcut ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "e") return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      e.preventDefault();
+      if (exportState === "triggering" || exportState === "fetching") return;
+      triggerExport();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [exportState, triggerExport]);
+
+  // ── Escape: dismiss completed export status ───────────────────────────────
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape" || exportState !== "done") return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      e.preventDefault();
+      resetExport();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [exportState, resetExport]);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -406,14 +437,37 @@ export function EditorShell({ project }: EditorShellProps) {
           isLooping={isLooping}
           onToggleLoop={handleToggleLoop}
         />
-        {selectedScene && (
-          <SceneInspector
-            scene={selectedScene}
-            onDurationChange={handleSceneDurationChange}
-            onTransitionChange={handleSceneTransitionChange}
-            onFadeDurationChange={handleFadeDurationChange}
-            onOverlayChange={handleOverlayChange}
-          />
+        {/* Right column: export artifact panel when done with output; scene inspector otherwise */}
+        {exportState === "done" && exportJobStatus !== null && hasRenderResult(exportJobStatus) && exportJobStatus.renderResult.artifacts.length > 0 ? (
+          <div
+            style={{
+              width: 360,
+              flexShrink: 0,
+              borderLeft: "1px solid var(--color-border)",
+              backgroundColor: "var(--color-bg-secondary)",
+              overflowY: "auto",
+              padding: 12,
+            }}
+          >
+            {exportJobStatus.renderResult.artifacts.map((artifact) => (
+              <ArtifactPreviewPanel
+                key={artifact.path}
+                result={toArtifactPreviewable(artifact)}
+                label="Export Output"
+                highlighted={false}
+              />
+            ))}
+          </div>
+        ) : (
+          selectedScene && (
+            <SceneInspector
+              scene={selectedScene}
+              onDurationChange={handleSceneDurationChange}
+              onTransitionChange={handleSceneTransitionChange}
+              onFadeDurationChange={handleFadeDurationChange}
+              onOverlayChange={handleOverlayChange}
+            />
+          )
         )}
       </div>
 

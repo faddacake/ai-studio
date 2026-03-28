@@ -27,9 +27,12 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import fs from "node:fs";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { schema } from "@aistudio/db";
+import { ARTIFACTS_DIR } from "../../lib/artifactStorage";
 
 import {
   createEditorExportJob,
@@ -368,7 +371,7 @@ describe("runExportJob — renderer adapter integration", () => {
     let capturedPayload: ExportJobPayload | undefined;
     const spyRender = (payload: ExportJobPayload): RenderResult => {
       capturedPayload = payload;
-      return { sceneCount: payload.scenes.length, totalDurationMs: payload.totalDurationMs };
+      return { sceneCount: payload.scenes.length, totalDurationMs: payload.totalDurationMs, artifacts: [] };
     };
     runExportJob(job.id, db, spyRender);
     assert.ok(capturedPayload, "adapter should have been called with the payload");
@@ -381,7 +384,7 @@ describe("runExportJob — renderer adapter integration", () => {
     let adapterArg: unknown;
     const spyRender = (payload: ExportJobPayload): RenderResult => {
       adapterArg = payload;
-      return { sceneCount: payload.scenes.length, totalDurationMs: payload.totalDurationMs };
+      return { sceneCount: payload.scenes.length, totalDurationMs: payload.totalDurationMs, artifacts: [] };
     };
     runExportJob(job.id, db, spyRender);
     // The adapter arg should have payload fields but no DB row fields (id, status, etc.)
@@ -472,11 +475,11 @@ describe("runExportJob — persisted render result contract", () => {
     assert.ok(result.renderResult, "renderResult should be present");
   });
 
-  it("renderResult has exactly two fields: sceneCount and totalDurationMs", () => {
+  it("renderResult has exactly three fields: artifacts, sceneCount, and totalDurationMs", () => {
     const db = makeDb();
     const job = makeJob(db);
     const { renderResult } = runExportJob(job.id, db);
-    assert.deepEqual(Object.keys(renderResult).sort(), ["sceneCount", "totalDurationMs"]);
+    assert.deepEqual(Object.keys(renderResult).sort(), ["artifacts", "sceneCount", "totalDurationMs"]);
   });
 
   it("renderResult.sceneCount matches the persisted payload scene count", () => {
@@ -525,11 +528,12 @@ describe("runExportJob — persisted render result contract", () => {
     assert.ok(!("fileSizeBytes" in rr), "fileSizeBytes absent");
   });
 
-  it("renderResult is deterministic — same payload produces same result", () => {
+  it("renderResult is deterministic — identical payloads produce identical results", () => {
+    // Both jobs use the same projectId so artifact paths are identical.
     const db1 = makeDb();
     const db2 = makeDb();
-    const j1 = makeJob(db1, "proj-det-1");
-    const j2 = makeJob(db2, "proj-det-2");
+    const j1 = makeJob(db1, "proj-det");
+    const j2 = makeJob(db2, "proj-det");
     const r1 = runExportJob(j1.id, db1);
     const r2 = runExportJob(j2.id, db2);
     assert.deepEqual(r1.renderResult, r2.renderResult);
@@ -542,6 +546,7 @@ describe("runExportJob — persisted render result contract", () => {
     const spyRender = (_payload: ExportJobPayload): RenderResult => ({
       sceneCount: 7,
       totalDurationMs: 99000,
+      artifacts: [],
     });
     const { renderResult } = runExportJob(job.id, db, spyRender);
     assert.equal(renderResult.sceneCount, 7);
@@ -576,12 +581,12 @@ describe("runExportJob — renderResult persisted to DB row", () => {
     assert.equal(row.renderResult!.totalDurationMs, job.payload.totalDurationMs);
   });
 
-  it("persisted renderResult has exactly { sceneCount, totalDurationMs }", () => {
+  it("persisted renderResult has exactly { artifacts, sceneCount, totalDurationMs }", () => {
     const db = makeDb();
     const job = makeJob(db);
     runExportJob(job.id, db);
     const { renderResult } = getEditorExportJob(job.id, db)!;
-    assert.deepEqual(Object.keys(renderResult!).sort(), ["sceneCount", "totalDurationMs"]);
+    assert.deepEqual(Object.keys(renderResult!).sort(), ["artifacts", "sceneCount", "totalDurationMs"]);
   });
 
   it("persisted renderResult reflects spy-injected adapter values", () => {
@@ -590,6 +595,7 @@ describe("runExportJob — renderResult persisted to DB row", () => {
     const spyRender = (_payload: ExportJobPayload): RenderResult => ({
       sceneCount: 3,
       totalDurationMs: 12000,
+      artifacts: [],
     });
     runExportJob(job.id, db, spyRender);
     const { renderResult } = getEditorExportJob(job.id, db)!;
@@ -624,7 +630,7 @@ describe("runExportJob — renderResult persisted to DB row", () => {
     assert.strictEqual(row.renderResult, null);
   });
 
-  it("persisted renderResult contains no file/artifact fields", () => {
+  it("persisted renderResult contains no flat file/artifact fields", () => {
     const db = makeDb();
     const job = makeJob(db);
     runExportJob(job.id, db);
@@ -632,5 +638,146 @@ describe("runExportJob — renderResult persisted to DB row", () => {
     assert.ok(!("outputPath" in rr), "outputPath absent");
     assert.ok(!("artifactUrl" in rr), "artifactUrl absent");
     assert.ok(!("fileSizeBytes" in rr), "fileSizeBytes absent");
+  });
+
+  it("persisted renderResult.artifacts is an array", () => {
+    const db = makeDb();
+    const job = makeJob(db);
+    runExportJob(job.id, db);
+    const { renderResult } = getEditorExportJob(job.id, db)!;
+    assert.ok(Array.isArray(renderResult!.artifacts), "artifacts is an array");
+  });
+
+  it("default adapter produces a non-empty artifacts array after persistence", () => {
+    const db = makeDb();
+    const job = makeJob(db);
+    runExportJob(job.id, db);
+    const { renderResult } = getEditorExportJob(job.id, db)!;
+    assert.ok(renderResult!.artifacts.length > 0, "artifacts is non-empty");
+  });
+
+  it("each persisted artifact has path and mimeType strings", () => {
+    const db = makeDb();
+    const job = makeJob(db);
+    runExportJob(job.id, db);
+    const { renderResult } = getEditorExportJob(job.id, db)!;
+    for (const a of renderResult!.artifacts) {
+      assert.strictEqual(typeof a.path, "string");
+      assert.ok(a.path.length > 0);
+      assert.strictEqual(typeof a.mimeType, "string");
+      assert.ok(a.mimeType.length > 0);
+    }
+  });
+
+  it("spy-injected empty artifacts array persists as empty array", () => {
+    const db = makeDb();
+    const job = makeJob(db);
+    const emptyArtifactsSpy = (_payload: ExportJobPayload): RenderResult => ({
+      sceneCount: 1,
+      totalDurationMs: 5000,
+      artifacts: [],
+    });
+    runExportJob(job.id, db, emptyArtifactsSpy);
+    const { renderResult } = getEditorExportJob(job.id, db)!;
+    assert.deepEqual(renderResult!.artifacts, []);
+  });
+
+  it("runner strips artifacts missing path or mimeType", () => {
+    const db = makeDb();
+    const job = makeJob(db);
+    // Inject an adapter that returns two artifacts: one valid, one missing mimeType.
+    const mixedArtifactsSpy = (_payload: ExportJobPayload): RenderResult => ({
+      sceneCount: 1,
+      totalDurationMs: 5000,
+      artifacts: [
+        { path: "/valid/path.mp4", mimeType: "video/mp4" },
+        { path: "", mimeType: "video/mp4" },        // empty path — stripped
+        { path: "/no-mime.mp4", mimeType: "" },      // empty mimeType — stripped
+      ],
+    });
+    runExportJob(job.id, db, mixedArtifactsSpy);
+    const { renderResult } = getEditorExportJob(job.id, db)!;
+    assert.equal(renderResult!.artifacts.length, 1, "only the valid artifact survives");
+    assert.equal(renderResult!.artifacts[0].path, "/valid/path.mp4");
+  });
+});
+
+// ── Storage-backed artifact path — persisted and retrievable ─────────────────
+
+describe("runExportJob — storage-backed artifact path persisted to DB", () => {
+  it("persisted artifact path is absolute", () => {
+    const db = makeDb();
+    const job = makeJob(db);
+    runExportJob(job.id, db);
+    const { renderResult } = getEditorExportJob(job.id, db)!;
+    assert.ok(path.isAbsolute(renderResult!.artifacts[0].path), "persisted path is absolute");
+  });
+
+  it("persisted artifact path is under ARTIFACTS_DIR", () => {
+    const db = makeDb();
+    const job = makeJob(db);
+    runExportJob(job.id, db);
+    const { renderResult } = getEditorExportJob(job.id, db)!;
+    assert.ok(
+      renderResult!.artifacts[0].path.startsWith(ARTIFACTS_DIR),
+      "persisted path is under ARTIFACTS_DIR",
+    );
+  });
+
+  it("persisted artifact path contains the job's projectId", () => {
+    const db = makeDb();
+    const job = makeJob(db, "proj-artifact-path-check");
+    runExportJob(job.id, db);
+    const { renderResult } = getEditorExportJob(job.id, db)!;
+    assert.ok(
+      renderResult!.artifacts[0].path.includes(job.projectId),
+      "persisted path contains the projectId",
+    );
+  });
+
+  it("artifact file exists on disk after execution", () => {
+    const db = makeDb();
+    const job = makeJob(db, "proj-artifact-disk-check");
+    runExportJob(job.id, db);
+    const { renderResult } = getEditorExportJob(job.id, db)!;
+    assert.ok(
+      fs.existsSync(renderResult!.artifacts[0].path),
+      "artifact file exists on disk",
+    );
+  });
+
+  it("artifact path round-trips through DB serialization unchanged", () => {
+    const db = makeDb();
+    const job = makeJob(db, "proj-artifact-roundtrip");
+    const { renderResult: inMemory } = runExportJob(job.id, db);
+    const { renderResult: fromDb } = getEditorExportJob(job.id, db)!;
+    assert.equal(fromDb!.artifacts[0].path, inMemory.artifacts[0].path);
+  });
+
+  it("artifact mimeType round-trips through DB serialization unchanged", () => {
+    const db = makeDb();
+    const job = makeJob(db, "proj-artifact-mime-roundtrip");
+    const { renderResult: inMemory } = runExportJob(job.id, db);
+    const { renderResult: fromDb } = getEditorExportJob(job.id, db)!;
+    assert.equal(fromDb!.artifacts[0].mimeType, inMemory.artifacts[0].mimeType);
+  });
+
+  it("artifact label round-trips through DB serialization unchanged", () => {
+    const db = makeDb();
+    const job = makeJob(db, "proj-artifact-label-roundtrip");
+    const { renderResult: inMemory } = runExportJob(job.id, db);
+    const { renderResult: fromDb } = getEditorExportJob(job.id, db)!;
+    assert.equal(fromDb!.artifacts[0].label, inMemory.artifacts[0].label);
+  });
+
+  it("two jobs with different projectIds persist different artifact paths", () => {
+    const db = makeDb();
+    const j1 = makeJob(db, "proj-path-diff-1");
+    const j2 = makeJob(db, "proj-path-diff-2");
+    runExportJob(j1.id, db);
+    runExportJob(j2.id, db);
+    const r1 = getEditorExportJob(j1.id, db)!.renderResult!;
+    const r2 = getEditorExportJob(j2.id, db)!.renderResult!;
+    assert.notEqual(r1.artifacts[0].path, r2.artifacts[0].path);
   });
 });

@@ -1,44 +1,40 @@
 /**
- * Renderer-facing placeholder adapter — the future renderer insertion point.
+ * Export renderer selection layer.
  *
- * Accepts a validated ExportJobPayload (the exact render input contract) and
- * returns a deterministic mock RenderResult. No rendering, no ffmpeg, no
- * artifacts, no output persistence.
+ * Owns renderer selection via `getExportJobRenderer()` and re-exports the
+ * shared contract types so downstream consumers (runner, tests) have a
+ * single stable import location.
  *
- * When a real renderer is introduced, replace the body of `renderExportJob`.
- * The signature (ExportJobPayload → RenderResult) is the stable boundary
- * contract that the runner will always call.
+ * Active renderer: `realExportJobRenderer`. To swap, change `activeExportJobRenderer`
+ * below — no other file needs to change.
  *
  * Server-side only — never import from client components.
  */
 
-import type { ExportJobPayload } from "@aistudio/shared";
+import { realExportJobRenderer } from "./editorExportJobRealRenderer";
+import type { ExportJobRenderer } from "./editorExportJobTypes";
 
-// ── Result type ───────────────────────────────────────────────────────────────
+// ── Active renderer ───────────────────────────────────────────────────────────
 
-export interface RenderResult {
-  /** Number of scenes rendered. Mirrors payload.scenes.length. */
-  sceneCount: number;
-  /** Total timeline duration in ms. Mirrors payload.totalDurationMs. */
-  totalDurationMs: number;
-}
+/** Swap this constant to change the active renderer across the entire pipeline. */
+const activeExportJobRenderer: ExportJobRenderer = realExportJobRenderer;
 
-// ── Adapter ───────────────────────────────────────────────────────────────────
+// ── Contract types (re-exported for stable import paths) ──────────────────────
+
+export type { RenderResult, ExportJobRenderer } from "./editorExportJobTypes";
+
+// ── Active renderer (re-exported as renderExportJob for stable import paths) ──
+
+export { realExportJobRenderer as renderExportJob };
+
+// ── Selection seam ────────────────────────────────────────────────────────────
 
 /**
- * Placeholder renderer adapter.
+ * Return the active renderer adapter.
  *
- * Accepts the validated ExportJobPayload and returns a deterministic
- * RenderResult derived directly from the payload — no computation, no I/O.
- *
- * This is the stable contract boundary. The runner calls this function;
- * a real renderer replaces this body when rendering is introduced.
- *
- * @param payload - Validated export payload from the persisted job row.
+ * Currently returns `realExportJobRenderer`. Swap `activeExportJobRenderer`
+ * above to change the live path — `runExportJob` picks it up automatically.
  */
-export function renderExportJob(payload: ExportJobPayload): RenderResult {
-  return {
-    sceneCount: payload.scenes.length,
-    totalDurationMs: payload.totalDurationMs,
-  };
+export function getExportJobRenderer(): ExportJobRenderer {
+  return activeExportJobRenderer;
 }

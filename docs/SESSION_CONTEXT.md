@@ -1,7 +1,289 @@
 # SESSION CONTEXT — AI Studio
 
-Date: 2026-03-25
-Session: Video Editor — export pipeline integration smoke test ✅ SHIPPED
+Date: 2026-03-28
+Session: Export System Complete — Full Interaction, Accessibility, and Shortcut Discoverability ✅ MILESTONE
+
+---
+
+## Session Summary — Export System Complete (2026-03-28)
+
+The export vertical is now a fully user-ready feature covering the entire loop from job creation to user interaction.
+
+**Export pipeline (previously landed):**
+- Real end-to-end renderer: video scenes are processed, artifacts are persisted to disk, and metadata is written to the DB.
+- `GET /api/export-jobs/[jobId]` returns live job status with `renderResult` (artifacts, sceneCount, totalDurationMs) once complete.
+- Completed artifacts are surfaced in the editor's right column via `ArtifactPreviewPanel`.
+
+**Polling (`useExportJob`):**
+- Hook upgraded from a one-shot fetch to a recursive `setTimeout` polling loop.
+- Polls every 2 s while job is `pending` or `running`; stops automatically on `completed` or `failed`.
+- Polling is cancelled on unmount, on `reset()`, and at the top of any new `trigger()` call.
+- 12 tests lock polling start/stop/cleanup/error behavior.
+
+**UI feedback (`ExportStatusPanel`):**
+- Active polling is visually distinct: pulsing accent dot + status-aware label (`Queued` / `Rendering…` / `Exporting…` fallback).
+- `triggering` (POST in flight) and `fetching` (polling) are shown differently.
+- Terminal success label corrected: `Export done` when `renderResult` is present; `Export queued` otherwise.
+
+**Accessibility:**
+- Single `role="status" aria-live="polite" aria-atomic="true"` live region always mounted inside a `display: contents` wrapper.
+- Announces every meaningful state transition: Exporting → Export queued → Export rendering → Export done / Export failed.
+- Silent on `idle` reset (empty string) to avoid noise.
+- Pulsing dot is `aria-hidden="true"`; it does not contribute to live announcements.
+
+**Keyboard interaction (`EditorShell`):**
+- `Cmd/Ctrl+E` triggers export; no-ops when already `triggering` or `fetching`.
+- `Escape` dismisses completed export status; fires only when `exportState === "done"`.
+- Both shortcuts guard against `INPUT` / `TEXTAREA` / `contentEditable` targets.
+
+**Shortcut discoverability (`ExportStatusPanel`):**
+- Idle Export button: `title="Export (⌘E)"` / `title="Export (Ctrl+E)"` (platform-aware).
+- Done Dismiss button: `title="Dismiss (Esc)"`.
+- Error Retry button: `title="Retry (⌘E)"` / `title="Retry (Ctrl+E)"` (platform-aware, includes error detail).
+
+**Test coverage added this milestone:**
+- `useExportJob.test.ts` — 12 tests (polling lifecycle, cleanup, error handling).
+- `ExportStatusPanel.test.ts` — 42 tests (all state branches, live region text, aria-hidden dot, shortcut hints).
+- `test:hooks` and `test:components` scripts added to `package.json`; `tsconfig.test.json` enables `react-jsx` transform for component tests.
+
+Next recommended task: Begin next feature vertical — scene transition preview inside the editor playback system.
+
+---
+
+Date: 2026-03-27
+Session: Export Pipeline — Real Renderer Internal Helper Surface Established ✅ SHIPPED
+
+---
+
+## Session Summary — Real Renderer Internal Helper Surface Established (2026-03-27)
+
+Added `buildRealRendererResult` as the first internal construction seam inside the real renderer module, giving future rendering logic a clear home.
+
+**`apps/web/src/server/api/editorExportJobRealRenderer.ts`** (updated):
+- `buildRealRendererResult(payload: ExportJobPayload): RenderResult` — internal helper; currently delegates to `placeholderExportJobRenderer`; future real rendering logic replaces the body here
+- `realExportJobRenderer` updated to delegate to `buildRealRendererResult` instead of calling the placeholder directly
+
+**`apps/web/src/server/api/editorExportJobRendererAdapter.test.ts`** (updated):
+- Imports `realExportJobRenderer`, `buildRealRendererResult` from real renderer module
+- 4 new tests: `realExportJobRenderer` output equality + sceneCount + totalDurationMs + artifacts length
+- 2 new tests: `buildRealRendererResult` equality with renderer + determinism
+
+**Totals:** 414 server + 238 lib + 16 integration = 668 tests passing. TypeScript clean.
+
+Next recommended task: Define the first renderer-specific intermediate value in the real renderer module, such as a tiny normalized render input object derived from `ExportJobPayload`.
+
+---
+
+## Session Summary — Real Renderer Stub Module Added (2026-03-27)
+
+Added a second renderer module stub proving the swap path is real, and routed selection through a single typed local constant.
+
+**`apps/web/src/server/api/editorExportJobRealRenderer.ts`** (new):
+- `realExportJobRenderer: ExportJobRenderer` — delegates to `placeholderExportJobRenderer`; body is the future replacement point
+
+**`apps/web/src/server/api/editorExportJobRenderer.ts`** (updated):
+- `activeExportJobRenderer: ExportJobRenderer = placeholderExportJobRenderer` — single local constant controlling active renderer
+- `getExportJobRenderer()` returns `activeExportJobRenderer` instead of naming the module directly
+
+No behavior changes. No test changes needed.
+
+**Totals:** 408 server + 238 lib + 16 integration = 662 tests passing. TypeScript clean.
+
+Next recommended task: Define the first minimal real-renderer-specific helper surface inside the stub module so future rendering logic has a home without leaking into the selection layer.
+
+---
+
+## Session Summary — Swappable Placeholder Renderer Module Extracted (2026-03-27)
+
+Moved all placeholder renderer implementation into a dedicated module, proving the module-boundary swap path and leaving the selection layer as a thin stable interface.
+
+**`apps/web/src/server/api/editorExportJobTypes.ts`** (updated):
+- Added `RenderResult` interface and `ExportJobRenderer` type (moved from renderer file)
+- Added `import type { ExportJobPayload }` to support `ExportJobRenderer` definition
+- All pipeline types now consolidated in one location
+
+**`apps/web/src/server/api/editorExportJobPlaceholderRenderer.ts`** (new):
+- Owns all placeholder implementation: `mockExportArtifactPath`, `mockExportArtifactDescriptor`, `mockExportRenderResult`, `placeholderExportJobRenderer`
+- Imports types from `editorExportJobTypes.ts` — no circular dependencies
+
+**`apps/web/src/server/api/editorExportJobRenderer.ts`** (rewritten as selection layer):
+- Re-exports `RenderResult`, `ExportJobRenderer` from types file
+- Re-exports placeholder helpers and `placeholderExportJobRenderer as renderExportJob`
+- `getExportJobRenderer()` returns `placeholderExportJobRenderer` from the placeholder module
+- All downstream import paths (runner, tests) unchanged
+
+No behavior changes. No test changes needed.
+
+**Totals:** 408 server + 238 lib + 16 integration = 662 tests passing. TypeScript clean.
+
+Next recommended task: Introduce a real-renderer stub module that also satisfies `ExportJobRenderer` and make `getExportJobRenderer()` choose between two modules using a single local constant.
+
+---
+
+## Session Summary — Renderer Selection Seam Extracted (2026-03-27)
+
+Extracted renderer selection into an explicit seam so the runner's default path goes through `getExportJobRenderer()` rather than directly naming the concrete implementation.
+
+**`apps/web/src/server/api/editorExportJobRenderer.ts`** (updated):
+- `getExportJobRenderer(): ExportJobRenderer` — new exported function; currently returns `renderExportJob`; future real renderer introduction only requires changing this function
+
+**`apps/web/src/server/api/editorExportJobRunner.ts`** (updated):
+- Imports `getExportJobRenderer` instead of `renderExportJob`
+- `render` default parameter: `renderExportJob` → `getExportJobRenderer()`
+- Injected renderer path (tests) unchanged
+
+No behavior changes. No new tests needed.
+
+**Totals:** 408 server + 238 lib + 16 integration = 662 tests passing. TypeScript clean.
+
+Next recommended task: Introduce a minimal real-renderer placeholder module that also satisfies `ExportJobRenderer` so renderer replacement can happen by swapping `getExportJobRenderer()` only.
+
+---
+
+## Session Summary — Explicit Renderer Adapter Contract Added (2026-03-27)
+
+Named the renderer seam explicitly — the runner now depends on `ExportJobRenderer` rather than an anonymous inline function type.
+
+**`apps/web/src/server/api/editorExportJobRenderer.ts`** (updated):
+- `ExportJobRenderer` type added: `(payload: ExportJobPayload) => RenderResult`
+- `renderExportJob` typed as `ExportJobRenderer` via `const renderExportJob: ExportJobRenderer = …`
+
+**`apps/web/src/server/api/editorExportJobRunner.ts`** (updated):
+- Imports `ExportJobRenderer` and `RenderResult` from the renderer
+- `render` parameter typed as `ExportJobRenderer` instead of the inline anonymous function shape
+
+No behavior changes. No new tests needed — existing runner contract tests already exercise the injection seam.
+
+**Totals:** 408 server + 238 lib + 16 integration = 662 tests passing. TypeScript clean.
+
+Next recommended task: Extract renderer selection into a tiny `getExportJobRenderer()` seam that currently returns `renderExportJob` and can later swap to a real implementation without changing runner code.
+
+---
+
+## Session Summary — Placeholder Renderer Public Contract Locked (2026-03-27)
+
+Added one focused public contract test that locks `renderExportJob`'s concrete outward behavior using explicit values independent of helper internals.
+
+**`apps/web/src/server/api/editorExportJobRendererAdapter.test.ts`** (updated):
+- New suite `renderExportJob — public contract` (6 tests): concrete two-scene payload with known `projectId` + `totalDurationMs`; explicit assertions for `sceneCount === 2`, `totalDurationMs === 6000`, `artifacts.length === 1`, `path === "/api/artifacts/mock/proj-contract/export.mp4"`, `mimeType === "video/mp4"`, `label === "Exported Video"` — no helper calls used for expected values
+
+**Totals:** 408 server + 238 lib + 16 integration = 662 tests passing. TypeScript clean.
+
+Next recommended task: Begin defining the real renderer seam by introducing a minimal renderer result adapter interface that a future implementation can satisfy without changing `runExportJob`.
+
+---
+
+## Session Summary — Placeholder RenderResult Centralized (2026-03-27)
+
+Centralized the full placeholder `RenderResult` construction into a renderer-owned helper, reducing `renderExportJob` to a single-expression delegation with no inline assembly.
+
+**`apps/web/src/server/api/editorExportJobRenderer.ts`** (updated):
+- `mockExportRenderResult(payload: ExportJobPayload): RenderResult` — new exported pure helper; owns the full placeholder result shape
+- `renderExportJob` reduced to `return mockExportRenderResult(payload)` — no inline field assembly remains
+
+**`apps/web/src/server/api/editorExportJobRendererAdapter.test.ts`** (updated):
+- Imports `mockExportRenderResult`
+- 5 new tests in `mockExportRenderResult — output shape`: shape, sceneCount, totalDurationMs, artifacts delegation, determinism
+- 4 new tests in `renderExportJob — delegates to mockExportRenderResult`: full delegation equality, concrete sceneCount, concrete totalDurationMs, concrete artifacts
+
+**Totals:** 402 server + 238 lib + 16 integration = 656 tests passing. TypeScript clean.
+
+Next recommended task: Add a tiny renderer contract test that explicitly locks the placeholder renderer's public output shape independent of helper internals.
+
+---
+
+## Session Summary — Placeholder Export Artifact Descriptor Centralized (2026-03-27)
+
+Centralized the full placeholder export artifact construction into a single renderer-owned helper, eliminating all inline literals from the adapter body.
+
+**`apps/web/src/server/api/editorExportJobRenderer.ts`** (updated):
+- `mockExportArtifactDescriptor(projectId: string): ExportArtifactRef` — new exported pure helper; returns `{ path: mockExportArtifactPath(projectId), mimeType: "video/mp4", label: "Exported Video" }`
+- `renderExportJob` updated: `artifacts: [mockExportArtifactDescriptor(payload.projectId)]` — no literals remain in the adapter body
+
+**`apps/web/src/server/api/editorExportJobRendererAdapter.test.ts`** (updated):
+- Imports `mockExportArtifactDescriptor`
+- Existing mimeType assertion replaced: `artifacts[0] deepEquals mockExportArtifactDescriptor(projectId)`
+- 7 new tests in `mockExportArtifactDescriptor — output contract` suite: path delegation, concrete path value, mimeType literal, label literal, shape, determinism, different IDs → different paths
+
+**Totals:** 393 server + 238 lib + 16 integration = 647 tests passing. TypeScript clean.
+
+Next recommended task: Add a minimal renderer-owned helper for placeholder render result construction so renderExportJob returns one centralized deterministic contract object instead of assembling fields inline.
+
+---
+
+## Session Summary — Stable Mock Export Artifact Naming Helper (2026-03-27)
+
+Centralized the placeholder export artifact path convention into a single renderer-owned helper, eliminating inline string duplication and establishing one source of truth before real renderer work begins.
+
+**`apps/web/src/server/api/editorExportJobRenderer.ts`** (updated):
+- `mockExportArtifactPath(projectId: string): string` — new exported pure helper; returns `/api/artifacts/mock/${projectId}/export.mp4`
+- `renderExportJob` updated to call `mockExportArtifactPath(payload.projectId)` — path no longer inlined
+
+**`apps/web/src/server/api/editorExportJobRendererAdapter.test.ts`** (updated):
+- Imports `mockExportArtifactPath`
+- Existing path test tightened: `path.includes(projectId)` → `path === mockExportArtifactPath(projectId)`
+- 5 new tests in `mockExportArtifactPath — output contract` suite: concrete path assertion, projectId preservation, determinism, different IDs → different paths, return type
+
+**Totals:** 386 server + 238 lib + 16 integration = 640 tests passing. TypeScript clean.
+
+Next recommended task: Define a minimal renderer-owned ExportArtifactDescriptor helper for placeholder video metadata so the future real renderer can replace values without changing artifact contract shape.
+
+---
+
+## Session Summary — ExportStatusPanel Artifact Preview Wiring (2026-03-27)
+
+Surfaced completed export artifacts in the editor UI by wiring `ExportArtifactRef` data through `ArtifactPreviewPanel`. No new preview component introduced; no API changes; no rendering/storage work.
+
+**`apps/web/src/lib/exportJobStatus.ts`** (updated):
+- Added `toArtifactPreviewable(artifact: ExportArtifactRef): ArtifactPreviewable` — maps export artifact ref into the shape `ArtifactPreviewPanel` expects: `modelId`/`outputUrl` ← `path`, `modelName` ← `label || mimeType || "Export Artifact"`, `mimeType` forwarded
+- Added `import type { ArtifactPreviewable }` from the panel
+
+**`apps/web/src/components/editor/ExportStatusPanel.tsx`** (updated):
+- When `state === "done"` and `renderResult.artifacts.length > 0`: renders `ArtifactPreviewPanel` per artifact below the scene count / duration line
+- Each panel uses `label="Export Output"`, `highlighted={false}`, keyed by `artifact.path`
+- No artifact section rendered when artifacts is empty
+- Existing scene count + duration metadata unchanged
+
+**`apps/web/src/lib/exportJobStatus.test.ts`** (updated):
+- 1 new test: `artifacts are accessible from a completed renderResult response`
+- 2 new suites for `toArtifactPreviewable` (10 new tests): output shape (outputUrl, modelId, modelName label/fallbacks, mimeType), determinism
+
+**Totals:** 381 server + 238 lib + 16 integration = 635 tests passing. TypeScript clean.
+
+Next recommended task: Replace the deterministic mock artifact path with a renderer-owned helper that generates a stable export artifact naming convention shared by tests and future real renderer work.
+
+---
+
+## Session Summary — Artifact Output Contract Definition (2026-03-27)
+
+Extended the export pipeline from metadata-only output to include a stable artifact reference contract. No rendering, no storage, no queue changes.
+
+**`apps/web/src/server/api/editorExportJobTypes.ts`** (updated):
+- `ExportArtifactRef` — new type: `{ path, mimeType, label? }` — pure reference, no storage linkage
+- `PersistedRenderResult` — extended with `artifacts: ExportArtifactRef[]`
+
+**`apps/web/src/server/api/editorExportJobRenderer.ts`** (updated):
+- `RenderResult` — extended with `artifacts: ExportArtifactRef[]`
+- `renderExportJob` — returns deterministic mock artifact: `path: /api/artifacts/mock/${projectId}/export.mp4`, `mimeType: "video/mp4"`, `label: "Exported Video"`
+
+**`apps/web/src/server/api/editorExportJobRunner.ts`** (updated):
+- Validates artifact refs — filters out entries missing `path` or `mimeType`
+- Normalises `artifacts` into `PersistedRenderResult` alongside existing fields
+
+**`apps/web/src/lib/exportJobStatus.ts`** (updated):
+- `ExportArtifactRef` — client-side mirror type
+- `ExportRenderResult` — extended with `artifacts: ExportArtifactRef[]`
+
+**Tests updated** (all 625 passing, TypeScript clean):
+- `editorExportJobRendererAdapter.test.ts`: field assertion updated; 8 new artifact tests
+- `editorExportJobRunnerContract.test.ts`: field assertions updated; spy adapters include `artifacts`; 6 new artifact tests including validation/stripping test
+- `editorExportJobRead.test.ts`: `setExportJobRenderResult` calls include `artifacts: []`
+- `exportPipeline.integration.test.ts`: 2 new artifact assertions (array + non-empty)
+- `exportJobStatus.test.ts`: `RENDER_RESULT` constant updated; field assertion updated; 1 new artifacts test
+
+**Totals:** 381 server + 228 lib + 16 integration = 625 tests passing.
+
+Next recommended task: Render export artifacts in ExportStatusPanel using ArtifactPreviewPanel.
 
 ---
 

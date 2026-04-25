@@ -1,4 +1,4 @@
-# AI Studio Task Queue
+# Itera Studio Task Queue
 
 1. Graph-driven E2E orchestration test
 2. RunSet batch execution layer
